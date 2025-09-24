@@ -1,49 +1,34 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, make_response
 import requests
 
 app = Flask(__name__)
-app.secret_key = 'xxx'  # Replace with a strong secret
-API_HOST = 'http://10.102.196.113:8080' # API server
+app.secret_key = 'xxx'  # Dùng cho flash messages
+API_HOST = 'http://10.102.196.113:8080'  # API server
 
 # ---------------- Routes ----------------
 
 @app.route('/')
 def index():
-    if 'user_id' in session:
-        return redirect(url_for('pending_cases'))
     return render_template('login.html')
 
 @app.route('/terms')
 def terms():
-    return render_template('terms.html')  # hoặc nội dung nào bạn muốn
+    return render_template('terms.html')
 
 @app.route('/diagnose')
 def diagnosis():
-    if 'user_id' not in session:
-        flash('Vui lòng đăng nhập để sử dụng chức năng chẩn đoán.', 'warning')
-        return redirect(url_for('index'))
     return render_template('diagnosis.html', api_host=API_HOST)
 
 @app.route('/vision-qa')
 def vision_qa():
-    if 'user_id' not in session:
-        flash('Vui lòng đăng nhập để sử dụng chức năng Q&A.', 'warning')
-        return redirect(url_for('index'))
     return render_template('vision_qa.html', api_host=API_HOST)
 
 @app.route('/pending-cases')
 def pending_cases():
-    if 'user_id' not in session:
-        flash('Vui lòng đăng nhập để  xem pending-cases.', 'warning')
-        return redirect(url_for('index'))
     return render_template('pending_cases.html', api_host=API_HOST)
 
 @app.route('/history')
 def history():
-    if 'user_id' not in session:
-        flash('Vui lòng đăng nhập để xem lịch sử.', 'warning')
-        return redirect(url_for('index'))
-    
     try:
         response = requests.get(f"{API_HOST}/getStat", cookies={'session': request.cookies.get('session')})
         data = response.json() if response.status_code == 200 else {}
@@ -77,9 +62,12 @@ def login():
         try:
             response = requests.post(f"{API_HOST}/login", data=request.form)
             if response.status_code == 200:
-                session['user_id'] = response.cookies.get('session')
+                # Forward cookie từ server.py về trình duyệt
+                resp = make_response(redirect(url_for('pending_cases')))
+                if 'session' in response.cookies:
+                    resp.set_cookie('session', response.cookies['session'])
                 flash(response.json().get('message'), 'success')
-                return redirect(url_for('index'))
+                return resp
             else:
                 flash(response.json().get('error'), 'danger')
         except requests.RequestException as e:
@@ -89,10 +77,6 @@ def login():
 
 @app.route('/profile', methods=['GET', 'POST'])
 def profile():
-    if 'user_id' not in session:
-        flash('Vui lòng đăng nhập.', 'warning')
-        return redirect(url_for('index'))
-    
     if request.method == 'POST':
         files = {'profile_pic': request.files.get('profile_pic')}
         try:
@@ -118,16 +102,16 @@ def logout():
         requests.post(f"{API_HOST}/logout", cookies={'session': request.cookies.get('session')})
     except requests.RequestException:
         pass
-    session.pop('user_id', None)
+    # Xóa cookie session ở trình duyệt
+    resp = make_response(redirect(url_for('index')))
+    resp.delete_cookie('session')
     flash('Đã đăng xuất.', 'success')
-    return redirect(url_for('index'))
+    return resp
 
 # ------------- API Proxy ----------------
 
 @app.route('/diagnose', methods=['POST'])
 def diagnose():
-    if 'user_id' not in session:
-        return jsonify({"error": "Vui lòng đăng nhập."}), 401
     files = {'file': request.files.get('file')}
     try:
         response = requests.post(f"{API_HOST}/diagnose", data=request.form, files=files,
@@ -138,8 +122,6 @@ def diagnose():
 
 @app.route('/vqa-diagnose', methods=['POST'])
 def vqa_diagnose():
-    if 'user_id' not in session:
-        return jsonify({"error": "Vui lòng đăng nhập."}), 401
     files = {'file': request.files.get('file')}
     try:
         response = requests.post(f"{API_HOST}/vqa-diagnose", data=request.form, files=files,
