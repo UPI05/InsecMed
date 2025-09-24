@@ -10,7 +10,7 @@ from flask_limiter.util import get_remote_address
 from PIL import Image
 
 app = Flask(__name__)
-app.secret_key = ''
+app.secret_key = 'xxx'
 bcrypt = Bcrypt(app)
 CORS(app, origins=["http://10.102.196.113"], supports_credentials=True)  # Allow all origins for API server
 
@@ -165,6 +165,54 @@ def profile():
 def logout():
     session.pop('user_id',None)
     return jsonify({"message":"Đăng xuất thành công"}),200
+
+@app.route("/getStat", methods=["GET"])
+def get_stat():
+    if 'user_id' not in session:
+        return jsonify({"error":"Vui lòng đăng nhập"}),401
+    
+    user_id = session['user_id']
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    # Thống kê tổng quan
+    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=?", (user_id,))
+    total_diagnoses = c.fetchone()[0]
+
+    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND model='skin_cancer'", (user_id,))
+    skin_cancer = c.fetchone()[0]
+
+    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND model='pneumonia'", (user_id,))
+    pneumonia = c.fetchone()[0]
+
+    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND model='breast_cancer'", (user_id,))
+    breast_cancer = c.fetchone()[0]
+
+    c.execute("SELECT COUNT(*) FROM qa_interactions WHERE user_id=?", (user_id,))
+    total_qa = c.fetchone()[0]
+
+    # History diagnoses
+    c.execute("SELECT model,image_filename,prediction,probability,timestamp FROM diagnoses WHERE user_id=? ORDER BY timestamp DESC", (user_id,))
+    diagnoses = [{"model": row[0], "image_filename": row[1], "prediction": row[2], "probability": row[3], "timestamp": row[4]} for row in c.fetchall()]
+
+    # History Q&A
+    c.execute("SELECT image_filename,question,answer,timestamp FROM qa_interactions WHERE user_id=? ORDER BY timestamp DESC", (user_id,))
+    qa_interactions = [{"image_filename": row[0], "question": row[1], "answer": row[2], "timestamp": row[3]} for row in c.fetchall()]
+
+    conn.close()
+
+    return jsonify({
+        "stats": {
+            "total_diagnoses": total_diagnoses,
+            "skin_cancer": skin_cancer,
+            "pneumonia": pneumonia,
+            "breast_cancer": breast_cancer,
+            "total_qa": total_qa
+        },
+        "diagnoses": diagnoses,
+        "qa_interactions": qa_interactions
+    })
+
 
 # ----- Diagnosis -----
 @app.route("/diagnose", methods=["POST"])

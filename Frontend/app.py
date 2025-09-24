@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 import requests
 
 app = Flask(__name__)
-app.secret_key = ''  # Replace with a strong secret
+app.secret_key = 'xxx'  # Replace with a strong secret
 API_HOST = 'http://10.102.196.113:8080' # API server
 
 # ---------------- Routes ----------------
@@ -10,7 +10,7 @@ API_HOST = 'http://10.102.196.113:8080' # API server
 @app.route('/')
 def index():
     if 'user_id' in session:
-        return redirect(url_for('history'))
+        return redirect(url_for('pending_cases'))
     return render_template('login.html')
 
 @app.route('/terms')
@@ -31,6 +31,13 @@ def vision_qa():
         return redirect(url_for('index'))
     return render_template('vision_qa.html', api_host=API_HOST)
 
+@app.route('/pending-cases')
+def pending_cases():
+    if 'user_id' not in session:
+        flash('Vui lòng đăng nhập để  xem pending-cases.', 'warning')
+        return redirect(url_for('index'))
+    return render_template('pending_cases.html', api_host=API_HOST)
+
 @app.route('/history')
 def history():
     if 'user_id' not in session:
@@ -38,7 +45,7 @@ def history():
         return redirect(url_for('index'))
     
     try:
-        response = requests.get(f"{API_HOST}/history", cookies={'session': request.cookies.get('session')})
+        response = requests.get(f"{API_HOST}/getStat", cookies={'session': request.cookies.get('session')})
         data = response.json() if response.status_code == 200 else {}
     except requests.RequestException:
         data = {}
@@ -72,7 +79,7 @@ def login():
             if response.status_code == 200:
                 session['user_id'] = response.cookies.get('session')
                 flash(response.json().get('message'), 'success')
-                return redirect(url_for('history'))
+                return redirect(url_for('index'))
             else:
                 flash(response.json().get('error'), 'danger')
         except requests.RequestException as e:
