@@ -5,308 +5,159 @@
   <title>InsecMed - History & Statistics</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/vs.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
-    body {
-      background: #f5f7fa;
-    }
-    .card {
-      background: #ffffff;
-      border-radius: 15px;
-      box-shadow: 0px 4px 15px rgba(0,0,0,0.08);
-    }
-    .logo {
-      max-height: 40px;
-      border-radius: 50%;
-      border: 2px solid #0052cc;
-      padding: 3px;
-      margin-right: 10px;
-      transition: border-color 0.3s ease;
-    }
-    .logo:hover {
-      border-color: #f4d03f;
-    }
-    .history-image {
-      max-width: 100px;
-      max-height: 100px;
-      border-radius: 5px;
-      border: 1px solid #0052cc;
-      transition: border-color 0.3s ease;
-    }
-    .history-image:hover {
-      border-color: #f4d03f;
-    }
-    .table {
-      font-size: 0.9rem;
-    }
-    .table th {
-      background: linear-gradient(90deg, #0052cc, #00b7eb);
-      color: #ffffff;
-    }
-    .table td {
-      vertical-align: middle;
-    }
-    canvas#statsChart {
-      max-width: 100%;
-      max-height: 400px;
-    }
-    .navbar {
-      background: linear-gradient(90deg, #f5f7fa, #eceff1);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      border-radius: 0 0 10px 10px;
-      padding: 10px 0;
-    }
-    .navbar-brand {
-      font-weight: bold;
-      font-size: 1.5rem;
-      display: flex;
-      align-items: center;
-    }
-    .brand-text {
-      font-family: 'Roboto', sans-serif;
-      font-weight: 700;
-      font-size: 1.6rem;
-      background: linear-gradient(90deg, #0052cc, #00b7eb);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      letter-spacing: 1px;
-      transition: transform 0.3s ease, text-shadow 0.3s ease;
-    }
-    .navbar-brand:hover .brand-text {
-      transform: scale(1.05);
-      text-shadow: 0 0 5px rgba(244, 208, 63, 0.5);
-    }
-    .nav-link {
-      font-family: 'Roboto', sans-serif;
-      font-weight: 500;
-      font-size: 1.1rem;
-      color: #1a2b49;
-      padding: 10px 15px;
-      position: relative;
-      transition: color 0.3s ease;
-    }
-    .nav-link:hover {
-      color: #0052cc;
-    }
-    .nav-link::after {
-      content: '';
-      position: absolute;
-      width: 0;
-      height: 2px;
-      bottom: 0;
-      left: 50%;
-      background: linear-gradient(90deg, #f4d03f, #f8c471);
-      transition: width 0.3s ease, left 0.3s ease;
-    }
-    .nav-link:hover::after {
-      width: 100%;
-      left: 0;
-    }
-    .nav-link.active {
-      color: #0052cc;
-      font-weight: 700;
-    }
-    .nav-link.active::after {
-      width: 100%;
-      left: 0;
-      background: linear-gradient(90deg, #0052cc, #00b7eb);
-    }
-    .navbar-toggler {
-      border: none;
-      padding: 8px;
-    }
-    .navbar-toggler-icon {
-      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(26, 43, 73, 0.8)' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
-    }
-    .navbar-toggler:hover .navbar-toggler-icon {
-      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(244, 208, 63, 0.8)' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
-    }
-    .text-primary {
-      color: #0052cc !important;
-    }
-    .text-muted {
-      color: #6b7280 !important;
-    }
-    @media (max-width: 991px) {
-      .navbar-nav {
-        padding: 10px 0;
-        background: #ffffff;
-        border-radius: 8px;
-        margin-top: 10px;
-      }
-      .nav-link {
-        padding: 12px 20px;
-      }
-      .nav-link::after {
-        display: none;
-      }
-      .nav-link.active {
-        background: rgba(0, 82, 204, 0.1);
-        border-radius: 5px;
-      }
-    }
+    /* Giữ nguyên CSS cũ của content, table, card, chart... */
+    body { background: #f5f7fa; margin: 0; transition: padding-left 0.3s ease; }
+    .content { padding: 20px; transition: margin-left 0.3s ease; }
+    .sidebar-collapsed ~ .content { margin-left: 60px; }
+    .sidebar-expanded ~ .content { margin-left: 200px; }
+    .card { background: #fff; border-radius: 15px; box-shadow: 0px 4px 15px rgba(0,0,0,0.08); }
+    .history-image { max-width: 100px; max-height: 100px; border-radius: 5px; border: 1px solid #0052cc; transition: border-color 0.3s ease; }
+    .history-image:hover { border-color: #f4d03f; }
+    .table th { background: linear-gradient(90deg, #0052cc, #00b7eb); color: #fff; }
+    canvas#statsChart { max-width: 100%; max-height: 400px; }
   </style>
 </head>
-<body>
-  <nav class="navbar navbar-expand-lg navbar-light mb-4">
-    <div class="container">
-      <a class="navbar-brand" href="/">
-        <img src="/static/logo.png" alt="InsecMed Logo" class="logo">
-        <span class="brand-text">InsecMed</span>
-      </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation" aria-controls="mainNavigation" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="mainNavigation">
-        <ul class="navbar-nav ms-auto">
-          <li class="nav-item">
-            <a class="nav-link" href="/">Medical Image Diagnosis</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/vision-qa">Medical Vision Q&A</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link active" href="/history">History & Statistics</a>
-          </li>
+<body class="sidebar-collapsed">
+
+  <!-- INCLUDE SIDEBAR -->
+  {% include "sidebar.html" %}
+
+  <div class="content">
+    <div class="container py-5">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <div class="text-center mb-4">
+        <h1 class="fw-bold text-primary">History & Statistics</h1>
+        <p class="text-muted">Xem lịch sử các lần gọi mô hình và thống kê</p>
+      </div>
+
+      <!-- Thống kê và bảng dữ liệu giữ nguyên -->
+      <div class="card p-4 mb-4">
+        <h5>Thống kê</h5>
+        <canvas id="statsChart"></canvas>
+      </div>
+
+      <div class="card p-4 mb-4">
+        <h5>Chi tiết Thống kê</h5>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item">Tổng số chuẩn đoán: {{ stats.total_diagnoses }}</li>
+          <li class="list-group-item">Chuẩn đoán Ung thư da: {{ stats.skin_cancer }}</li>
+          <li class="list-group-item">Chuẩn đoán Viêm phổi: {{ stats.pneumonia }}</li>
+          <li class="list-group-item">Chuẩn đoán Ung thư vú: {{ stats.breast_cancer }}</li>
+          <li class="list-group-item">Tổng số tương tác Q&A: {{ stats.total_qa }}</li>
         </ul>
       </div>
-    </div>
-  </nav>
 
-  <div class="container py-5">
-    <div class="text-center mb-4">
-      <h1 class="fw-bold text-primary">History & Statistics</h1>
-      <p class="text-muted">Xem lịch sử các lần gọi mô hình và thống kê</p>
-    </div>
-
-    <div class="card p-4 mb-4">
-      <h5>Statistics Chart</h5>
-      <canvas id="statsChart"></canvas>
-    </div>
-
-    <div class="card p-4 mb-4">
-      <h5>Recent Diagnosis History</h5>
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead>
-            <tr>
-              <th>Model</th>
-              <th>Image</th>
-              <th>Prediction</th>
-              <th>Probability</th>
-              <th>Timestamp</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for diagnosis in diagnoses %}
-            <tr>
-              <td>{{ diagnosis.model }}</td>
-              <td>Private</td>
-              <td>{{ diagnosis.prediction }}</td>
-              <td>{{ (diagnosis.probability * 100) | round(2) }}%</td>
-              <td>{{ diagnosis.timestamp }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="card p-4 mb-4">
+        <h5>Lịch sử Chuẩn đoán</h5>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Mô hình</th>
+                <th>Ảnh</th>
+                <th>Chuẩn đoán</th>
+                <th>Xác suất</th>
+                <th>Thời gian</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for diagnosis in diagnoses %}
+              <tr>
+                <td>{{ diagnosis.model }}</td>
+                <td><img src="{{ url_for('static', filename='uploads/' + diagnosis.image_filename) }}" class="history-image"></td>
+                <td>{{ diagnosis.prediction }}</td>
+                <td>{{ (diagnosis.probability * 100) | round(2) }}%</td>
+                <td>{{ diagnosis.timestamp }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
 
-    <div class="card p-4">
-      <h5>Recent Q&A History</h5>
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead>
-            <tr>
-              <th>Image</th>
-              <th>Question</th>
-              <th>Answer</th>
-              <th>Timestamp</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for qa in qa_interactions %}
-            <tr>
-              <td>Private</td>
-              <td>{{ qa.question }}</td>
-              <td>{{ qa.answer }}</td>
-              <td>{{ qa.timestamp }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="card p-4">
+        <h5>Lịch sử Q&A</h5>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Ảnh</th>
+                <th>Câu hỏi</th>
+                <th>Câu trả lời</th>
+                <th>Thời gian</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for qa in qa_interactions %}
+              <tr>
+                <td><img src="{{ url_for('static', filename='uploads/' + qa.image_filename) }}" class="history-image"></td>
+                <td>{{ qa.question }}</td>
+                <td>{{ qa.answer }}</td>
+                <td>{{ qa.timestamp }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
+
     </div>
   </div>
 
+  <!-- Sidebar JS -->
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+
   <script>
     document.addEventListener("DOMContentLoaded", () => {
+      // Chart.js
       const ctx = document.getElementById("statsChart").getContext("2d");
       new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: ['Total Diagnoses', 'Skin Cancer', 'Pneumonia', 'Breast Cancer', 'Total Q&A'],
+          labels: ['Tổng Chuẩn đoán', 'Ung thư da', 'Viêm phổi', 'Ung thư vú', 'Tổng Q&A'],
           datasets: [{
-            label: 'Count',
+            label: 'Số lượng',
             data: [
-              {{ stats.total_diagnoses }},
-              {{ stats.skin_cancer }},
-              {{ stats.pneumonia }},
-              {{ stats.breast_cancer }},
-              {{ stats.total_qa }}
+              {{ stats.total_diagnoses | default(0) }},
+              {{ stats.skin_cancer | default(0) }},
+              {{ stats.pneumonia | default(0) }},
+              {{ stats.breast_cancer | default(0) }},
+              {{ stats.total_qa | default(0) }}
             ],
             backgroundColor: [
-              'rgba(0, 82, 204, 0.6)', // #0052cc
-              'rgba(0, 183, 235, 0.6)', // #00b7eb
+              'rgba(0, 82, 204, 0.6)',
+              'rgba(0, 183, 235, 0.6)',
               'rgba(0, 82, 204, 0.6)',
               'rgba(0, 183, 235, 0.6)',
               'rgba(0, 82, 204, 0.6)'
             ],
-            borderColor: [
-              'rgba(244, 208, 63, 1)', // #f4d03f
-              'rgba(244, 208, 63, 1)',
-              'rgba(244, 208, 63, 1)',
-              'rgba(244, 208, 63, 1)',
-              'rgba(244, 208, 63, 1)'
-            ],
-            borderWidth: 1
+            borderColor: 'rgba(244, 208, 63, 1)',
+            borderWidth: 2
           }]
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
           scales: {
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: 'Count'
-              }
-            },
-            x: {
-              title: {
-                display: true,
-                text: 'Category'
-              },
-              ticks: {
-                maxRotation: 45,
-                minRotation: 45
-              }
-            }
+            y: { beginAtZero: true, title: { display: true, text: 'Số lượng' } },
+            x: { title: { display: true, text: 'Danh mục' } }
           },
-          plugins: {
-            legend: {
-              display: false
-            },
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  return `${context.label}: ${context.parsed.y}`;
-                }
-              }
-            }
-          }
+          plugins: { legend: { display: false } }
         }
       });
     });

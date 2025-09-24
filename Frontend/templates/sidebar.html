@@ -1,0 +1,71 @@
+<div class="sidebar" id="sidebar">
+  <div class="toggle-btn" id="toggleSidebar">
+    <i class="fas fa-bars"></i>
+  </div>
+
+  <a href="/diagnose">
+    <img src="/static/logo.png" alt="Logo" class="logo">
+  </a>
+
+  <div class="menu-section">
+    <a class="nav-link" href="/diagnose" data-page="diagnose">
+      <i class="fas fa-stethoscope"></i>
+      <span class="nav-text">Medical Image Diagnosis</span>
+    </a>
+    <a class="nav-link" href="/vision-qa" data-page="vision-qa">
+      <i class="fas fa-circle-question"></i>
+      <span class="nav-text">Medical Vision Q&A</span>
+    </a>
+    <a class="nav-link" href="/history" data-page="history">
+      <i class="fas fa-clock"></i>
+      <span class="nav-text">History & Statistics</span>
+    </a>
+    <a class="nav-link" href="/pending-cases" data-page="pending-cases">
+      <i class="fas fa-hourglass-half"></i>
+      <span class="nav-text">Pending Cases</span>
+    </a>
+  </div>
+
+  <div class="menu-section menu-bottom">
+    <!-- Notifications -->
+    <a class="nav-link position-relative" href="#" data-bs-toggle="modal" data-bs-target="#notificationsModal">
+      <i class="fas fa-bell"></i>
+      <span class="nav-text ms-2">Notifications</span>
+      <span class="badge bg-danger">3</span>
+    </a>
+
+    <!-- Language Dropdown -->
+    <div class="dropdown w-100 mt-2">
+      <a class="dropdown-toggle d-flex align-items-center nav-link" href="#" id="langToggle" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
+        <i class="fas fa-flag"></i>
+        <span class="nav-text ms-2">Language</span>
+      </a>
+      <ul class="dropdown-menu language-dropdown" aria-labelledby="langToggle">
+        <li><a class="dropdown-item language-item" href="#" data-lang="en"><i class="fas fa-flag-usa"></i> English</a></li>
+        <li><a class="dropdown-item language-item" href="#" data-lang="vi"><i class="fas fa-flag"></i> Vietnamese</a></li>
+      </ul>
+    </div>
+
+    <!-- Profile Dropdown -->
+    <div class="dropdown w-100 mt-2">
+      <a class="dropdown-toggle d-flex align-items-center nav-link" href="#" id="profileToggle" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
+        <i class="fas fa-user"></i>
+        <span class="nav-text ms-2">Profile</span>
+      </a>
+      <ul class="dropdown-menu profile-dropdown" aria-labelledby="profileToggle">
+        <li><a class="dropdown-item" href="/profile">Profile</a></li>
+        <li><a class="dropdown-item" href="/logout">Logout</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications Modal -->
+<div class="modal fade" id="notificationsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Notifications</h5></div>
+      <div class="modal-body"><p>No new notifications.</p></div>
+    </div>
+  </div>
+</div>
