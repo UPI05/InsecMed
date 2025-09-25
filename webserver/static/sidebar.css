@@ -15,7 +15,7 @@
 }
 
 .sidebar.expanded {
-  width: 200px;
+  width: 300px;
   align-items: flex-start;
   padding-left: 15px;
 }

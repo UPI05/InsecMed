@@ -56,6 +56,12 @@
 
       <div class="card p-4">
         <form id="diagnosisForm">
+          <!-- Mã bệnh nhân -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">Mã bệnh nhân:</label>
+            <input type="text" class="form-control" name="patient_id" placeholder="Nhập Mã bệnh nhân" required>
+          </div>
+
           <!-- Chọn loại bệnh -->
           <div class="mb-3">
             <label class="form-label fw-bold">Chọn loại bệnh:</label>
@@ -75,6 +81,7 @@
             </select>
           </div>
 
+          <!-- Chọn ảnh -->
           <div class="mb-3">
             <label class="form-label fw-bold">Chọn ảnh:</label>
             <input type="file" class="form-control" name="file" accept="image/*" required>
@@ -190,7 +197,7 @@
     document.getElementById("diagnosisForm").addEventListener("submit", async function(e) {
       e.preventDefault();
 
-      let formData = new FormData(this); // chỉ gửi model và file
+      let formData = new FormData(this); // patient_id, model, file đều có
 
       let resultBox = document.getElementById("result");
       let chartCanvas = document.getElementById("predictionChart");

@@ -3,6 +3,8 @@ import sqlite3, os, secrets, requests
 from datetime import datetime
 import uuid
 from PIL import Image
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
@@ -10,6 +12,9 @@ app.secret_key = secrets.token_hex(32)
 # server host
 WEB_SERVER_HOST = 'http://10.102.196.113'
 AI_SERVER_HOST = 'http://10.102.196.113:8080'
+
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["50 per hour"])
 
 # Folders
 PROFILE_PIC_FOLDER = 'static/profile_pics'
@@ -20,15 +25,67 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # Database
 DB_FILE = 'insecmed.db'
 
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  full_name TEXT NOT NULL,
+                  email TEXT UNIQUE NOT NULL,
+                  phone TEXT,
+                  profile_pic TEXT,
+                  password_hash TEXT NOT NULL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS diagnoses
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id INTEGER,
+                  patient_id INTEGER,
+                  model TEXT,
+                  image_filename TEXT,
+                  prediction TEXT,
+                  probability REAL,
+                  timestamp DATETIME,
+                  FOREIGN KEY (user_id) REFERENCES users(id))''')
+    c.execute('''CREATE TABLE IF NOT EXISTS qa_interactions
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id INTEGER,
+                  patient_id INTEGER,
+                  image_filename TEXT,
+                  question TEXT,
+                  answer TEXT,
+                  timestamp DATETIME,
+                  FOREIGN KEY (user_id) REFERENCES users(id))''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS patients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            age INTEGER,
+            gender TEXT,
+            phone TEXT,
+            email TEXT,
+            address TEXT,
+            creator_id INTEGER NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
 def get_db_conn():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     return conn
 
 # ---------------- Routes ----------------
+@app.route("/ping", methods=["GET"])
+@limiter.limit("5 per minute")
+def ping():
+    return jsonify({"msg": "pong"})
 
 @app.route('/')
 def index():
+    if 'user_id' in session:
+        return redirect(url_for('pending_cases'))
     return render_template('login.html')
 
 @app.route('/terms')
@@ -162,7 +219,7 @@ def history():
     c = conn.cursor()
 
     # Diagnoses
-    c.execute("SELECT model,image_filename,prediction,probability,timestamp FROM diagnoses WHERE user_id=? ORDER BY timestamp DESC", (session['user_id'],))
+    c.execute("SELECT patient_id, model,image_filename,prediction,probability,timestamp FROM diagnoses WHERE user_id=? ORDER BY timestamp DESC", (session['user_id'],))
     diagnoses = [dict(row) for row in c.fetchall()]
 
     # QA interactions
@@ -173,30 +230,36 @@ def history():
     c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=?", (session['user_id'],))
     total_diagnoses = c.fetchone()[0]
 
-    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND model='skin_cancer'", (session['user_id'],))
+    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND model='skin_cancer_vit'", (session['user_id'],))
     skin_cancer = c.fetchone()[0]
 
-    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND model='pneumonia'", (session['user_id'],))
+    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND model='pneumonia_vit'", (session['user_id'],))
     pneumonia = c.fetchone()[0]
 
-    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND model='breast_cancer'", (session['user_id'],))
+    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND model='breast_cancer_vit'", (session['user_id'],))
     breast_cancer = c.fetchone()[0]
 
     c.execute("SELECT COUNT(*) FROM qa_interactions WHERE user_id=?", (session['user_id'],))
     total_qa = c.fetchone()[0]
 
     conn.close()
-    print(diagnoses)
+    
     return render_template('history.html', diagnoses=diagnoses, qa_interactions=qa_interactions,
                            stats={"total_diagnoses":total_diagnoses,"skin_cancer":skin_cancer,
                                   "pneumonia":pneumonia,"breast_cancer":breast_cancer,"total_qa":total_qa})
 
 @app.route('/pending-cases')
 def pending_cases():
+    if 'user_id' not in session:
+        flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
     return render_template('pending_cases.html', api_host=WEB_SERVER_HOST)
 
 @app.route('/api/pending_cases')
 def api_pending_cases():
+    if 'user_id' not in session:
+        flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
     # Dữ liệu mẫu
     CASES = [
         {"id": 1, "patient_name": "Nguyen Van A", "disease": "Ung thư da", "uploaded_at": "2025-09-25 10:20", "prediction": None},
@@ -208,6 +271,100 @@ def api_pending_cases():
     pending_cases = [c for c in CASES if c['prediction'] is None]
     return jsonify(pending_cases)
 
+# ---------------- Patient Management ----------------
+@app.route("/patient-management")
+def patient_management():
+    if 'user_id' not in session:
+        flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+
+    user_id = session['user_id']
+    conn = get_db_conn()
+    patients = conn.execute(
+        "SELECT * FROM patients WHERE creator_id = ?",
+        (user_id,)
+    ).fetchall()
+    conn.close()
+    return render_template("patient_management.html", patients=patients)
+
+
+@app.route("/patients/add", methods=["POST"])
+def add_patient():
+    if 'user_id' not in session:
+        flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+
+    data = request.form
+    user_id = session['user_id']
+
+    conn = get_db_conn()
+    conn.execute(
+        "INSERT INTO patients (name, age, gender, phone, email, address, creator_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (data["name"], data.get("age"), data.get("gender"), data.get("phone"), data.get("email"), data.get("address"), user_id)
+    )
+    conn.commit()
+    conn.close()
+    flash("Thêm bệnh nhân thành công", "success")
+    return redirect(url_for("patient_management"))
+
+
+@app.route("/patients/update/<int:id>", methods=["POST"])
+def update_patient(id):
+    if 'user_id' not in session:
+        flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+
+    user_id = session['user_id']
+    data = request.form
+
+    conn = get_db_conn()
+    # Kiểm tra quyền
+    patient = conn.execute(
+        "SELECT * FROM patients WHERE id = ? AND creator_id = ?",
+        (id, user_id)
+    ).fetchone()
+
+    if not patient:
+        conn.close()
+        flash("Bạn không có quyền sửa bệnh nhân này", "danger")
+        return redirect(url_for("patient_management"))
+
+    conn.execute(
+        "UPDATE patients SET name=?, age=?, gender=?, phone=?, email=?, address=? WHERE id=?",
+        (data["name"], data.get("age"), data.get("gender"), data.get("phone"), data.get("email"), data.get("address"), id)
+    )
+    conn.commit()
+    conn.close()
+    flash("Cập nhật bệnh nhân thành công", "success")
+    return redirect(url_for("patient_management"))
+
+
+@app.route("/patients/delete/<int:id>", methods=["POST"])
+def delete_patient(id):
+    if 'user_id' not in session:
+        flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+
+    user_id = session['user_id']
+    conn = get_db_conn()
+    # Kiểm tra quyền
+    patient = conn.execute(
+        "SELECT * FROM patients WHERE id = ? AND creator_id = ?",
+        (id, user_id)
+    ).fetchone()
+
+    if not patient:
+        conn.close()
+        flash("Bạn không có quyền xóa bệnh nhân này", "danger")
+        return redirect(url_for("patient_management"))
+
+    conn.execute("DELETE FROM patients WHERE id=?", (id,))
+    conn.commit()
+    conn.close()
+    flash("Xóa bệnh nhân thành công", "success")
+    return redirect(url_for("patient_management"))
+
+
 # ---------------- Diagnosis ----------------
 @app.route('/diagnose', methods=['GET','POST'])
 def diagnose():
@@ -218,17 +375,28 @@ def diagnose():
     if request.method == 'GET':
         return render_template('diagnosis.html', api_host=WEB_SERVER_HOST)
 
-    
     # POST: lưu file và request vào DB
     file = request.files.get('file')
     model_name = request.form.get('model')
+    patient_id = request.form.get('patient_id')
 
-    if not file or not model_name:
-        return jsonify({"error": "Thiếu file hoặc model"}), 400
+    if not file or not model_name or not patient_id:
+        return jsonify({"error": "Thiếu file, model hoặc mã bệnh nhân"}), 400
+
+    # Kiểm tra patient_id tồn tại và thuộc user hiện tại
+    conn = get_db_conn()
+    patient = conn.execute(
+        "SELECT * FROM patients WHERE id = ? AND creator_id = ?",
+        (patient_id, session['user_id'])
+    ).fetchone()
+    if not patient:
+        conn.close()
+        return jsonify({"error": "Mã bệnh nhân không tồn tại hoặc bạn không có quyền"}), 400
 
     try:
         image = Image.open(file)
     except Exception as e:
+        conn.close()
         return jsonify({"error": f"Lỗi đọc ảnh: {e}"}), 400
 
     filename = f"{uuid.uuid4()}_{file.filename}"
@@ -241,21 +409,23 @@ def diagnose():
         resp = requests.post(f"{AI_SERVER_HOST}/diagnose", data=data, files=files)
         results = resp.json()
     except requests.RequestException as e:
+        files['file'].close()
+        conn.close()
         return jsonify({"error": f"Lỗi kết nối API: {e}"}), 500
     finally:
         files['file'].close()
 
     # Lưu vào database
     max_result = max(results, key=lambda x: x['score'])
-    conn = get_db_conn()
     conn.execute(
-        "INSERT INTO diagnoses (user_id,model,image_filename,prediction,probability,timestamp) VALUES (?,?,?,?,?,?)",
-        (session['user_id'], model_name, filename, max_result['label'], max_result['score'], datetime.now())
+        "INSERT INTO diagnoses (user_id, patient_id, model, image_filename, prediction, probability, timestamp) VALUES (?,?,?,?,?,?,?)",
+        (session['user_id'], patient_id, model_name, filename, max_result['label'], max_result['score'], datetime.now())
     )
     conn.commit()
     conn.close()
 
     return jsonify(results)
+
 
 # ---------------- Vision QA ----------------
 @app.route('/vision-qa', methods=['GET','POST'])

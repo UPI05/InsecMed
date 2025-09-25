@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>InsecMed - Patient Management</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
+  <style>
+    body { background: #f5f7fa; }
+    .card { border-radius: 15px; box-shadow: 0px 4px 15px rgba(0,0,0,0.08); }
+    .table td, .table th { vertical-align: middle; }
+    #searchInput { max-width: 300px; }
+  </style>
+</head>
+<body class="sidebar-collapsed" data-page="patient-management">
+  {% include "sidebar.html" %}
+
+  <div class="content">
+    <div class="container py-5">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <div class="text-center mb-4">
+        <h1 class="fw-bold text-primary">Quản lý bệnh nhân</h1>
+        <p class="text-muted">Thêm, sửa, xóa và tìm kiếm bệnh nhân</p>
+      </div>
+
+      <div class="mb-3 d-flex justify-content-between">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPatientModal">
+          <i class="fas fa-plus"></i> Thêm bệnh nhân
+        </button>
+        <input type="text" id="searchInput" class="form-control w-25" placeholder="Tìm kiếm bệnh nhân...">
+      </div>
+
+      <div class="card p-4">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Mã số</th>
+                <th>Họ tên</th>
+                <th>Tuổi</th>
+                <th>Giới tính</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Địa chỉ</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in patients %}
+              <tr>
+                <td>{{ p.id }}</td>
+                <td>{{ p.name }}</td>
+                <td>{{ p.age }}</td>
+                <td>{{ p.gender }}</td>
+                <td>{{ p.phone }}</td>
+                <td>{{ p.email }}</td>
+                <td>{{ p.address }}</td>
+                <td>
+                  <button class="btn btn-sm btn-warning edit-btn" data-bs-toggle="modal" data-bs-target="#editPatientModal"
+                    data-id="{{ p.id }}" data-name="{{ p.name }}" data-age="{{ p.age }}" data-gender="{{ p.gender }}"
+                    data-phone="{{ p.phone }}" data-email="{{ p.email }}" data-address="{{ p.address }}">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <form action="{{ url_for('delete_patient', id=p.id) }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Bạn có chắc muốn xóa?')">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Patient Modal -->
+  <div class="modal fade" id="addPatientModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form action="{{ url_for('add_patient') }}" method="POST">
+          <div class="modal-header">
+            <h5 class="modal-title">Thêm bệnh nhân</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input class="form-control mb-2" type="text" name="name" placeholder="Họ tên" required>
+            <input class="form-control mb-2" type="number" name="age" placeholder="Tuổi">
+            <select class="form-select mb-2" name="gender">
+              <option value="">Giới tính</option>
+              <option value="Nam">Nam</option>
+              <option value="Nữ">Nữ</option>
+              <option value="Khác">Khác</option>
+            </select>
+            <input class="form-control mb-2" type="text" name="phone" placeholder="Phone">
+            <input class="form-control mb-2" type="email" name="email" placeholder="Email">
+            <input class="form-control mb-2" type="text" name="address" placeholder="Địa chỉ">
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary w-100">Thêm</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Patient Modal -->
+  <div class="modal fade" id="editPatientModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form id="editPatientForm" method="POST">
+          <div class="modal-header">
+            <h5 class="modal-title">Sửa bệnh nhân</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input class="form-control mb-2" type="text" name="name" placeholder="Họ tên" required>
+            <input class="form-control mb-2" type="number" name="age" placeholder="Tuổi">
+            <select class="form-select mb-2" name="gender">
+              <option value="">Giới tính</option>
+              <option value="Nam">Nam</option>
+              <option value="Nữ">Nữ</option>
+              <option value="Khác">Khác</option>
+            </select>
+            <input class="form-control mb-2" type="text" name="phone" placeholder="Phone">
+            <input class="form-control mb-2" type="email" name="email" placeholder="Email">
+            <input class="form-control mb-2" type="text" name="address" placeholder="Địa chỉ">
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary w-100">Cập nhật</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+
+  <script>
+    // Fill Edit Modal
+    const editModal = document.getElementById('editPatientModal');
+    editModal.addEventListener('show.bs.modal', event => {
+      const button = event.relatedTarget;
+      const form = document.getElementById('editPatientForm');
+      const id = button.getAttribute('data-id');
+      form.action = `/patients/update/${id}`;
+
+      form.name.value = button.getAttribute('data-name');
+      form.age.value = button.getAttribute('data-age');
+      form.gender.value = button.getAttribute('data-gender');
+      form.phone.value = button.getAttribute('data-phone');
+      form.email.value = button.getAttribute('data-email');
+      form.address.value = button.getAttribute('data-address');
+    });
+
+    // Search filter
+    const searchInput = document.getElementById('searchInput');
+    searchInput.addEventListener('input', function() {
+      const filter = this.value.toLowerCase();
+      const rows = document.querySelectorAll('table tbody tr');
+
+      rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(filter) ? '' : 'none';
+      });
+    });
+  </script>
+</body>
+</html>
