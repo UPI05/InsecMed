@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>InsecMed - Medical Image Diagnosis</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
@@ -12,15 +13,11 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Sidebar CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
 
-  <!-- Page CSS -->
   <style>
     body { background: #f5f7fa; }
     .card { background: #ffffff; border-radius: 15px; box-shadow: 0px 4px 15px rgba(0,0,0,0.08); }
-    .logo { max-height: 40px; border-radius: 50%; border: 2px solid #0052cc; padding: 3px; margin-right: 10px; transition: border-color 0.3s ease; }
-    .logo:hover { border-color: #f4d03f; }
     #result { white-space: pre-wrap !important; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #d1d5db; font-family: monospace; font-size: 14px; }
     #imagePreview { max-width: 100%; max-height: 300px; margin-top: 15px; border-radius: 10px; border: 1px solid #0052cc; transition: border-color 0.3s ease; }
     #imagePreview:hover { border-color: #f4d03f; }
@@ -31,14 +28,8 @@
     .modal-title { font-weight: bold; }
     .modal-body { padding: 20px; font-size: 1.1rem; text-align: center; }
     .modal-footer { border-top: none; justify-content: center; }
-    .btn-close { background-color: rgba(0,0,0,0.2); }
-    .btn-close:hover { background-color: rgba(244, 208, 63, 0.4); }
-    .prediction-text { font-size: 1.3rem; font-weight: bold; color: #0052cc; }
-    .probability-text { font-size: 1.1rem; color: #6b7280; }
-    .btn-primary { background: #0052cc; border-color: #0052cc; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; }
-    .btn-primary:hover { background: #003d99; border-color: #003d99; box-shadow: 0 2px 8px rgba(244, 208, 63, 0.3); }
-    .text-primary { color: #0052cc !important; }
-    .text-muted { color: #6b7280 !important; }
+    .btn-primary { background: #0052cc; border-color: #0052cc; }
+    .btn-primary:hover { background: #003d99; border-color: #003d99; }
   </style>
 </head>
 <body class="sidebar-collapsed" data-page="diagnosis">
@@ -60,18 +51,27 @@
 
       <div class="text-center mb-4">
         <h1 class="fw-bold text-primary">Medical Image Diagnosis</h1>
-        <p class="text-muted">Chọn model, tải ảnh và nhận chuẩn đoán</p>
+        <p class="text-muted">Chọn loại bệnh, model, tải ảnh và nhận chuẩn đoán</p>
       </div>
 
       <div class="card p-4">
         <form id="diagnosisForm">
+          <!-- Chọn loại bệnh -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">Chọn loại bệnh:</label>
+            <select class="form-select" id="diseaseSelect" required>
+              <option value="">-- Chọn loại bệnh --</option>
+              <option value="skin_cancer">Ung thư da</option>
+              <option value="lung_cancer">Ung thư phổi</option>
+              <option value="breast_cancer">Ung thư vú</option>
+            </select>
+          </div>
+
+          <!-- Chọn model -->
           <div class="mb-3">
             <label class="form-label fw-bold">Chọn model:</label>
-            <select class="form-select" name="model" required>
-              <option value="">-- Select Model --</option>
-              <option value="skin_cancer">Skin Cancer - Vision Transformer (ViT)</option>
-              <option value="pneumonia">Pneumonia - Vision Transformer (ViT)</option>
-              <option value="breast_cancer">Breast Cancer - Vision Transformer (ViT)</option>
+            <select class="form-select" name="model" id="modelSelect" required disabled>
+              <option value="">-- Chọn model --</option>
             </select>
           </div>
 
@@ -129,15 +129,14 @@
     </div>
   </div>
 
-  <!-- Sidebar JS -->
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
 
-  <!-- Page JS -->
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       hljs.highlightAll();
     });
 
+    // Image preview
     document.querySelector('input[name="file"]').addEventListener("change", function(e) {
       const file = e.target.files[0];
       const previewImage = document.getElementById("imagePreview");
@@ -150,12 +149,49 @@
       }
     });
 
+    // Disease -> Model dynamic
+    const diseaseModels = {
+      skin_cancer: [
+        { value: "skin_cancer_vit", text: "Vision Transformer (ViT)" },
+        { value: "efficient", text: "EfficientNet" },
+        { value: "resnet", text: "ResNet" }
+      ],
+      lung_cancer: [
+        { value: "pneumonia_vit", text: "Vision Transformer (ViT)" },
+        { value: "efficient", text: "EfficientNet" },
+        { value: "resnet", text: "ResNet" }
+      ],
+      breast_cancer: [
+        { value: "breast_cancer_vit", text: "Vision Transformer (ViT)" },
+        { value: "efficient", text: "EfficientNet" },
+        { value: "resnet", text: "ResNet" }
+      ]
+    };
+
+    const diseaseSelect = document.getElementById("diseaseSelect");
+    const modelSelect = document.getElementById("modelSelect");
+
+    diseaseSelect.addEventListener("change", function() {
+      const selectedDisease = this.value;
+      modelSelect.innerHTML = '<option value="">-- Chọn model --</option>';
+      modelSelect.disabled = !selectedDisease;
+      if (selectedDisease && diseaseModels[selectedDisease]) {
+        diseaseModels[selectedDisease].forEach(model => {
+          const option = document.createElement("option");
+          option.value = model.value;
+          option.text = model.text;
+          modelSelect.appendChild(option);
+        });
+      }
+    });
+
     let chartInstance = null;
 
     document.getElementById("diagnosisForm").addEventListener("submit", async function(e) {
       e.preventDefault();
 
-      let formData = new FormData(this);
+      let formData = new FormData(this); // chỉ gửi model và file
+
       let resultBox = document.getElementById("result");
       let chartCanvas = document.getElementById("predictionChart");
       let modalPredictionLabel = document.getElementById("modalPredictionLabel");

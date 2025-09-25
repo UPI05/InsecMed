@@ -195,6 +195,19 @@ def history():
 def pending_cases():
     return render_template('pending_cases.html', api_host=WEB_SERVER_HOST)
 
+@app.route('/api/pending_cases')
+def api_pending_cases():
+    # Dữ liệu mẫu
+    CASES = [
+        {"id": 1, "patient_name": "Nguyen Van A", "disease": "Ung thư da", "uploaded_at": "2025-09-25 10:20", "prediction": None},
+        {"id": 2, "patient_name": "Tran Thi B", "disease": "Ung thư phổi", "uploaded_at": "2025-09-24 15:45", "prediction": "Không có vấn đề"},
+        {"id": 3, "patient_name": "Le Van C", "disease": "Ung thư vú", "uploaded_at": "2025-09-23 09:10", "prediction": None}
+    ]
+
+    # Chỉ trả những case chưa có prediction
+    pending_cases = [c for c in CASES if c['prediction'] is None]
+    return jsonify(pending_cases)
+
 # ---------------- Diagnosis ----------------
 @app.route('/diagnose', methods=['GET','POST'])
 def diagnose():

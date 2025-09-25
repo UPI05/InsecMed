@@ -33,11 +33,11 @@ def diagnose():
     filename = f"{uuid.uuid4()}_{file.filename}"
     image.save(os.path.join(UPLOAD_FOLDER, filename))
 
-    if model_name=="skin_cancer":
+    if model_name=="skin_cancer_vit":
         results = skin_cancer_model(image)
-    elif model_name=="pneumonia":
+    elif model_name=="pneumonia_vit":
         results = pneumonia_model(image)
-    elif model_name=="breast_cancer":
+    elif model_name=="breast_cancer_vit":
         results = breast_cancer_model(image)
     else:
         return jsonify({"error":"Model không hợp lệ"}),400
@@ -47,6 +47,7 @@ def diagnose():
 @app.route("/vqa-diagnose", methods=["POST"])
 def vqa_diagnose():
     return jsonify({"answer":"Temporarily closed"}),503
+
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=8080, debug=True)
