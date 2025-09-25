@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>InsecMed - Terms and Conditions</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: #f5f7fa;
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .terms-container {
+      max-width: 800px;
+      width: 100%;
+      padding: 20px;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 15px;
+      box-shadow: 0px 4px 15px rgba(0,0,0,0.08);
+      padding: 30px;
+    }
+    .btn-primary {
+      background: #0052cc;
+      border-color: #0052cc;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .btn-primary:hover {
+      background: #003d99;
+      border-color: #003d99;
+      box-shadow: 0 2px 8px rgba(244, 208, 63, 0.3);
+    }
+    .text-primary {
+      color: #0052cc !important;
+    }
+    .text-muted {
+      color: #6b7280 !important;
+    }
+    .language-select {
+      max-width: 150px;
+    }
+    @media (max-width: 576px) {
+      .terms-container {
+        padding: 10px;
+      }
+      .language-select {
+        max-width: 120px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="terms-container">
+    <select id="languageSelect" class="form-select language-select mb-3">
+      <option value="en">English</option>
+      <option value="vi" selected>Vietnamese</option>
+    </select>
+    <div class="card">
+      <div class="text-center mb-4">
+        <h1 class="fw-bold text-primary" data-key="terms.title">Điều khoản sử dụng</h1>
+        <p class="text-muted" data-key="terms.subtitle">Vui lòng đọc kỹ các điều khoản sử dụng của InsecMed</p>
+      </div>
+      <div>
+        <h5 data-key="terms.section1_title">1. Giới thiệu</h5>
+        <p data-key="terms.section1_content">Chào mừng bạn đến với InsecMed. Bằng cách sử dụng dịch vụ của chúng tôi, bạn đồng ý tuân thủ các điều khoản và điều kiện được nêu dưới đây.</p>
+        <h5 data-key="terms.section2_title">2. Điều kiện sử dụng</h5>
+        <p data-key="terms.section2_content">Bạn phải cung cấp thông tin chính xác khi đăng ký và sử dụng dịch vụ. Không được sử dụng dịch vụ cho các mục đích bất hợp pháp.</p>
+        <h5 data-key="terms.section3_title">3. Bảo mật</h5>
+        <p data-key="terms.section3_content">Chúng tôi cam kết bảo vệ thông tin cá nhân của bạn theo chính sách bảo mật của chúng tôi.</p>
+        <h5 data-key="terms.section4_title">4. Trách nhiệm</h5>
+        <p data-key="terms.section4_content">InsecMed không chịu trách nhiệm cho bất kỳ thiệt hại nào phát sinh từ việc sử dụng dịch vụ.</p>
+      </div>
+      <div class="text-center mt-4">
+        <a href="{{ url_for('register') }}" class="btn btn-primary" data-key="terms.back">Quay lại</a>
+      </div>
+    </div>
+  </div>
+  <script>
+    const translations = {
+      en: {
+        'terms.title': 'Terms and Conditions',
+        'terms.subtitle': 'Please read the terms and conditions of InsecMed carefully',
+        'terms.section1_title': '1. Introduction',
+        'terms.section1_content': 'Welcome to InsecMed. By using our services, you agree to comply with the terms and conditions outlined below.',
+        'terms.section2_title': '2. Conditions of Use',
+        'terms.section2_content': 'You must provide accurate information when registering and using the service. The service must not be used for illegal purposes.',
+        'terms.section3_title': '3. Privacy',
+        'terms.section3_content': 'We are committed to protecting your personal information in accordance with our privacy policy.',
+        'terms.section4_title': '4. Liability',
+        'terms.section4_content': 'InsecMed is not liable for any damages arising from the use of the service.',
+        'terms.back': 'Back'
+      },
+      vi: {
+        'terms.title': 'Điều khoản sử dụng',
+        'terms.subtitle': 'Vui lòng đọc kỹ các điều khoản sử dụng của InsecMed',
+        'terms.section1_title': '1. Giới thiệu',
+        'terms.section1_content': 'Chào mừng bạn đến với InsecMed. Bằng cách sử dụng dịch vụ của chúng tôi, bạn đồng ý tuân thủ các điều khoản và điều kiện được nêu dưới đây.',
+        'terms.section2_title': '2. Điều kiện sử dụng',
+        'terms.section2_content': 'Bạn phải cung cấp thông tin chính xác khi đăng ký và sử dụng dịch vụ. Không được sử dụng dịch vụ cho các mục đích bất hợp pháp.',
+        'terms.section3_title': '3. Bảo mật',
+        'terms.section3_content': 'Chúng tôi cam kết bảo vệ thông tin cá nhân của bạn theo chính sách bảo mật của chúng tôi.',
+        'terms.section4_title': '4. Trách nhiệm',
+        'terms.section4_content': 'InsecMed không chịu trách nhiệm cho bất kỳ thiệt hại nào phát sinh từ việc sử dụng dịch vụ.',
+        'terms.back': 'Quay lại'
+      }
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const languageSelect = document.getElementById("languageSelect");
+      const currentLang = localStorage.getItem("language") || "vi";
+      languageSelect.value = currentLang;
+      updateLanguage(currentLang);
+
+      languageSelect.addEventListener("change", (e) => {
+        const lang = e.target.value;
+        localStorage.setItem("language", lang);
+        updateLanguage(lang);
+      });
+
+      function updateLanguage(lang) {
+        document.querySelectorAll("[data-key]").forEach(element => {
+          const key = element.getAttribute("data-key");
+          element.textContent = translations[lang][key] || element.textContent;
+        });
+      }
+    });
+  </script>
+</body>
+</html>

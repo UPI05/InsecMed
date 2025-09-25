@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>InsecMed - Medical Image Diagnosis</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/vs.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/json.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Sidebar CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
+
+  <!-- Page CSS -->
+  <style>
+    body { background: #f5f7fa; }
+    .card { background: #ffffff; border-radius: 15px; box-shadow: 0px 4px 15px rgba(0,0,0,0.08); }
+    .logo { max-height: 40px; border-radius: 50%; border: 2px solid #0052cc; padding: 3px; margin-right: 10px; transition: border-color 0.3s ease; }
+    .logo:hover { border-color: #f4d03f; }
+    #result { white-space: pre-wrap !important; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #d1d5db; font-family: monospace; font-size: 14px; }
+    #imagePreview { max-width: 100%; max-height: 300px; margin-top: 15px; border-radius: 10px; border: 1px solid #0052cc; transition: border-color 0.3s ease; }
+    #imagePreview:hover { border-color: #f4d03f; }
+    #chartTab { padding: 15px; min-height: 300px; }
+    canvas#predictionChart { max-width: 100%; max-height: 400px; }
+    .modal-content { border-radius: 15px; border: none; box-shadow: 0px 5px 20px rgba(0,0,0,0.15); }
+    .modal-header { background: linear-gradient(90deg, #0052cc, #00b7eb); color: #ffffff; border-top-left-radius: 15px; border-top-right-radius: 15px; border-bottom: none; }
+    .modal-title { font-weight: bold; }
+    .modal-body { padding: 20px; font-size: 1.1rem; text-align: center; }
+    .modal-footer { border-top: none; justify-content: center; }
+    .btn-close { background-color: rgba(0,0,0,0.2); }
+    .btn-close:hover { background-color: rgba(244, 208, 63, 0.4); }
+    .prediction-text { font-size: 1.3rem; font-weight: bold; color: #0052cc; }
+    .probability-text { font-size: 1.1rem; color: #6b7280; }
+    .btn-primary { background: #0052cc; border-color: #0052cc; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; }
+    .btn-primary:hover { background: #003d99; border-color: #003d99; box-shadow: 0 2px 8px rgba(244, 208, 63, 0.3); }
+    .text-primary { color: #0052cc !important; }
+    .text-muted { color: #6b7280 !important; }
+  </style>
+</head>
+<body class="sidebar-collapsed" data-page="diagnosis">
+
+  {% include "sidebar.html" %}
+
+  <div class="content">
+    <div class="container py-5">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <div class="text-center mb-4">
+        <h1 class="fw-bold text-primary">Medical Image Diagnosis</h1>
+        <p class="text-muted">Chọn model, tải ảnh và nhận chuẩn đoán</p>
+      </div>
+
+      <div class="card p-4">
+        <form id="diagnosisForm">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Chọn model:</label>
+            <select class="form-select" name="model" required>
+              <option value="">-- Select Model --</option>
+              <option value="skin_cancer">Skin Cancer - Vision Transformer (ViT)</option>
+              <option value="pneumonia">Pneumonia - Vision Transformer (ViT)</option>
+              <option value="breast_cancer">Breast Cancer - Vision Transformer (ViT)</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Chọn ảnh:</label>
+            <input type="file" class="form-control" name="file" accept="image/*" required>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100">Chuẩn đoán bệnh</button>
+        </form>
+
+        <div class="mt-4">
+          <h5>Image Preview</h5>
+          <img id="imagePreview" src="" alt="Ảnh xem trước" style="display: none;">
+        </div>
+
+        <div class="mt-4">
+          <h5>Diagnosis Results</h5>
+          <ul class="nav nav-tabs" id="resultTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="json-tab" data-bs-toggle="tab" data-bs-target="#jsonTab" type="button" role="tab">Raw Results</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="chart-tab" data-bs-toggle="tab" data-bs-target="#chartTab" type="button" role="tab">Prediction Chart</button>
+            </li>
+          </ul>
+          <div class="tab-content mt-3">
+            <div class="tab-pane fade show active" id="jsonTab" role="tabpanel">
+              <pre><code id="result" class="language-json">Chưa có kết quả</code></pre>
+            </div>
+            <div class="tab-pane fade" id="chartTab" role="tabpanel">
+              <canvas id="predictionChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="diagnosisAlert" tabindex="-1" aria-labelledby="diagnosisAlertLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="diagnosisAlertLabel">Kết quả Chuẩn đoán</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="prediction-text" id="modalPredictionLabel">Chưa có kết quả</p>
+          <p class="probability-text" id="modalPredictionScore">Xác suất: 0%</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Đóng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar JS -->
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+
+  <!-- Page JS -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      hljs.highlightAll();
+    });
+
+    document.querySelector('input[name="file"]').addEventListener("change", function(e) {
+      const file = e.target.files[0];
+      const previewImage = document.getElementById("imagePreview");
+      if (file) {
+        previewImage.src = URL.createObjectURL(file);
+        previewImage.style.display = "block";
+      } else {
+        previewImage.src = "";
+        previewImage.style.display = "none";
+      }
+    });
+
+    let chartInstance = null;
+
+    document.getElementById("diagnosisForm").addEventListener("submit", async function(e) {
+      e.preventDefault();
+
+      let formData = new FormData(this);
+      let resultBox = document.getElementById("result");
+      let chartCanvas = document.getElementById("predictionChart");
+      let modalPredictionLabel = document.getElementById("modalPredictionLabel");
+      let modalPredictionScore = document.getElementById("modalPredictionScore");
+
+      try {
+        let response = await fetch("{{ api_host }}/diagnose", {
+          method: "POST",
+          body: formData,
+          credentials: 'include'
+        });
+
+        let data = await response.json();
+        if (!response.ok) throw new Error(data.error || "HTTP error " + response.status);
+
+        let jsonString = JSON.stringify(data, null, 2);
+        resultBox.textContent = jsonString;
+        resultBox.classList.add("language-json");
+        hljs.highlightElement(resultBox);
+
+        const labels = data.map(item => item.label);
+        const scores = data.map(item => item.score);
+        let maxScoreIndex = scores.indexOf(Math.max(...scores));
+        let maxLabel = labels[maxScoreIndex];
+        let maxScore = scores[maxScoreIndex];
+
+        modalPredictionLabel.textContent = maxLabel;
+        modalPredictionScore.textContent = `Xác suất: ${(maxScore * 100).toFixed(2)}%`;
+
+        const predictionModal = new bootstrap.Modal(document.getElementById("diagnosisAlert"));
+        predictionModal.show();
+
+        if (chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(chartCanvas, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Xác suất',
+              data: scores,
+              backgroundColor: 'rgba(0, 82, 204, 0.6)',
+              borderColor: 'rgba(244, 208, 63, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: { beginAtZero: true, max: 1, title: { display: true, text: 'Xác suất' } },
+              x: { title: { display: true, text: 'Loại bệnh' }, ticks: { maxRotation: 45, minRotation: 45 } }
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return `Xác suất: ${(context.parsed.y * 100).toFixed(2)}%`;
+                  }
+                }
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.error("Fetch error:", err);
+        resultBox.textContent = "Lỗi: " + err.message;
+        resultBox.classList.remove("language-json");
+        alert("Fetch error: " + err.message);
+
+        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+      }
+    });
+  </script>
+</body>
+</html>
