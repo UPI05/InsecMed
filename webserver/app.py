@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Flask, render_template, render_template_string, request, jsonify, redirect, url_for, flash, session
 import sqlite3, os, secrets, requests
 from datetime import datetime
+from celery import Celery
 import uuid
 from PIL import Image
 from flask_limiter import Limiter
@@ -14,7 +15,16 @@ WEB_SERVER_HOST = 'http://10.102.196.113'
 AI_SERVER_HOST = 'http://10.102.196.113:8080'
 
 # Rate limiter
-limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["50 per hour"])
+limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["100 per hour"])
+
+# Cấu hình Celery dùng Redis làm broker
+app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'   # broker
+app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'  # lưu kết quả
+
+celery = Celery(app.name,
+                broker=app.config['CELERY_BROKER_URL'],
+                backend=app.config['CELERY_RESULT_BACKEND'])
+celery.conf.update(app.config)
 
 # Folders
 PROFILE_PIC_FOLDER = 'static/profile_pics'
@@ -34,6 +44,7 @@ def init_db():
                   email TEXT UNIQUE NOT NULL,
                   phone TEXT,
                   profile_pic TEXT,
+                  role TEXT,
                   password_hash TEXT NOT NULL)''')
     c.execute('''CREATE TABLE IF NOT EXISTS diagnoses
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,6 +86,39 @@ def get_db_conn():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     return conn
+# -----------------Celery ----------------
+@celery.task(bind=True)
+def call_diagnosis_from_ai_server(self, filename, patient_id, model_name, user_id):
+    # Gọi API server để inference
+    files = {'file': open(os.path.join(UPLOAD_FOLDER, filename), 'rb')}
+    data = {'model': model_name}
+    resp = requests.post(f"{AI_SERVER_HOST}/diagnose", data=data, files=files)
+    results = resp.json()
+
+    # Lưu vào database
+    max_result = max(results, key=lambda x: x['score'])
+    conn = get_db_conn()
+    conn.execute(
+        "INSERT INTO diagnoses (user_id, patient_id, model, image_filename, prediction, probability, timestamp) VALUES (?,?,?,?,?,?,?)",
+        (user_id, patient_id, model_name, filename, max_result['label'], max_result['score'], datetime.now())
+    )
+    conn.commit()
+    conn.close()
+
+    return results
+
+@app.route('/diagnoseStatus/<task_id>')
+@limiter.limit("120 per minute")
+def task_status(task_id):
+    task = call_diagnosis_from_ai_server.AsyncResult(task_id)
+    if task.state == 'PENDING':
+        return jsonify({"status": "queued"})
+    elif task.state == 'SUCCESS':
+        return jsonify({"status": "finished", "result": task.result})
+    elif task.state == 'FAILURE':
+        return jsonify({"status": "failed", "error": str(task.info)})
+    else:
+        return jsonify({"status": task.state})
 
 # ---------------- Routes ----------------
 @app.route("/ping", methods=["GET"])
@@ -85,7 +129,7 @@ def ping():
 @app.route('/')
 def index():
     if 'user_id' in session:
-        return redirect(url_for('pending_cases'))
+        return redirect(url_for('diagnose'))
     return render_template('login.html')
 
 @app.route('/terms')
@@ -93,21 +137,28 @@ def terms():
     return render_template('terms.html')
 
 
-@app.route('/register', methods=['GET','POST'])
+@app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         full_name = request.form.get('full_name')
         email = request.form.get('email')
         password = request.form.get('password')
         phone = request.form.get('phone')
+        role = request.form.get('role')
         profile_pic = request.files.get('profile_pic')
 
         if not full_name or not email or not password:
             flash("Họ tên, email, mật khẩu bắt buộc.", "danger")
             return redirect(url_for('register'))
 
+        if not role:
+            flash("Vui lòng chọn vai trò (Bệnh nhân hoặc Bác sĩ).", "danger")
+            return redirect(url_for('register'))
+
         conn = get_db_conn()
         c = conn.cursor()
+
+        # kiểm tra email đã tồn tại
         c.execute("SELECT id FROM users WHERE email=?", (email,))
         if c.fetchone():
             flash("Email đã đăng ký.", "danger")
@@ -123,13 +174,19 @@ def register():
             filename = f"{uuid.uuid4()}_{profile_pic.filename}"
             profile_pic.save(os.path.join(PROFILE_PIC_FOLDER, filename))
 
-        c.execute("INSERT INTO users (full_name,email,phone,profile_pic,password_hash) VALUES (?,?,?,?,?)",
-                  (full_name,email,phone,filename,password_hash))
+        # thêm role vào insert
+        c.execute("""
+            INSERT INTO users (full_name, email, phone, profile_pic, password_hash, role)
+            VALUES (?,?,?,?,?,?)
+        """, (full_name, email, phone, filename, password_hash, role))
+
         conn.commit()
         conn.close()
         flash("Đăng ký thành công!", "success")
         return redirect(url_for('index'))
+
     return render_template('register.html')
+
 
 @app.route('/login', methods=['GET','POST'])
 def login():
@@ -142,7 +199,7 @@ def login():
 
         conn = get_db_conn()
         c = conn.cursor()
-        c.execute("SELECT id,password_hash FROM users WHERE email=?", (email,))
+        c.execute("SELECT id,password_hash,role FROM users WHERE email=?", (email,))
         user = c.fetchone()
         conn.close()
 
@@ -151,8 +208,14 @@ def login():
 
         if user and bcrypt.check_password_hash(user['password_hash'], password):
             session['user_id'] = user['id']
+            session['user_role'] = user['role']
             flash("Đăng nhập thành công!", "success")
-            return redirect(url_for('pending_cases'))
+            return render_template_string("""
+            <script>
+            localStorage.removeItem('taskList');
+            window.location.href = "/";
+            </script>
+            """)
         else:
             flash("Email hoặc mật khẩu không đúng.", "danger")
             return redirect(url_for('index'))
@@ -161,14 +224,25 @@ def login():
 @app.route('/logout')
 def logout():
     session.pop('user_id', None)
+    session.pop('user_role', None)
     flash("Đã đăng xuất.", "success")
-    return redirect(url_for('index'))
+    return render_template_string("""
+    <script>
+    localStorage.removeItem('taskList');
+    window.location.href = "/";
+    </script>
+    """)
 
 @app.route('/profile', methods=['GET','POST'])
 def profile():
-    if 'user_id' not in session:
+    if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
         return redirect(url_for('index'))
+    show_patient_management = False
+    isDoctor = False
+    if (session['user_role'] == 'doctor'):
+        show_patient_management = True
+        isDoctor = True
 
     conn = get_db_conn()
     c = conn.cursor()
@@ -207,13 +281,18 @@ def profile():
     c.execute("SELECT full_name,email,phone,profile_pic FROM users WHERE id=?", (session['user_id'],))
     user = c.fetchone()
     conn.close()
-    return render_template('profile.html', user=user)
+    return render_template('profile.html', isDoctor=isDoctor, user=user, show_patient_management=show_patient_management)
 
 @app.route('/history')
 def history():
-    if 'user_id' not in session:
+    if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
         return redirect(url_for('index'))
+    show_patient_management = False
+    isDoctor = False
+    if (session['user_role'] == 'doctor'):
+        show_patient_management = True
+        isDoctor = True
 
     conn = get_db_conn()
     c = conn.cursor()
@@ -244,38 +323,33 @@ def history():
 
     conn.close()
     
-    return render_template('history.html', diagnoses=diagnoses, qa_interactions=qa_interactions,
+    return render_template('history.html', isDoctor=isDoctor, show_patient_management=show_patient_management, diagnoses=diagnoses[:20], qa_interactions=qa_interactions[:20],
                            stats={"total_diagnoses":total_diagnoses,"skin_cancer":skin_cancer,
                                   "pneumonia":pneumonia,"breast_cancer":breast_cancer,"total_qa":total_qa})
 
 @app.route('/pending-cases')
 def pending_cases():
-    if 'user_id' not in session:
+    if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
         return redirect(url_for('index'))
-    return render_template('pending_cases.html', api_host=WEB_SERVER_HOST)
-
-@app.route('/api/pending_cases')
-def api_pending_cases():
-    if 'user_id' not in session:
-        flash("Vui lòng đăng nhập", "danger")
+    show_patient_management = False
+    isDoctor = False
+    if (session['user_role'] == 'doctor'):
+        show_patient_management = True
+        isDoctor = True
+    else:
         return redirect(url_for('index'))
-    # Dữ liệu mẫu
-    CASES = [
-        {"id": 1, "patient_name": "Nguyen Van A", "disease": "Ung thư da", "uploaded_at": "2025-09-25 10:20", "prediction": None},
-        {"id": 2, "patient_name": "Tran Thi B", "disease": "Ung thư phổi", "uploaded_at": "2025-09-24 15:45", "prediction": "Không có vấn đề"},
-        {"id": 3, "patient_name": "Le Van C", "disease": "Ung thư vú", "uploaded_at": "2025-09-23 09:10", "prediction": None}
-    ]
-
-    # Chỉ trả những case chưa có prediction
-    pending_cases = [c for c in CASES if c['prediction'] is None]
-    return jsonify(pending_cases)
+    return render_template('pending_cases.html', isDoctor=isDoctor, api_host=WEB_SERVER_HOST, show_patient_management=show_patient_management)
 
 # ---------------- Patient Management ----------------
 @app.route("/patient-management")
 def patient_management():
-    if 'user_id' not in session:
+    if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+    
+    if (session['user_role'] != 'doctor'):
+        flash("Role khong hop le", "danger")
         return redirect(url_for('index'))
 
     user_id = session['user_id']
@@ -285,13 +359,16 @@ def patient_management():
         (user_id,)
     ).fetchall()
     conn.close()
-    return render_template("patient_management.html", patients=patients)
+    return render_template("patient_management.html", isDoctor=True, show_patient_management=True, patients=patients)
 
 
 @app.route("/patients/add", methods=["POST"])
 def add_patient():
-    if 'user_id' not in session:
+    if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+    if (session['user_role'] != 'doctor'):
+        flash("Role khong hop le", "danger")
         return redirect(url_for('index'))
 
     data = request.form
@@ -310,8 +387,11 @@ def add_patient():
 
 @app.route("/patients/update/<int:id>", methods=["POST"])
 def update_patient(id):
-    if 'user_id' not in session:
+    if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+    if (session['user_role'] != 'doctor'):
+        flash("Role khong hop le", "danger")
         return redirect(url_for('index'))
 
     user_id = session['user_id']
@@ -341,8 +421,11 @@ def update_patient(id):
 
 @app.route("/patients/delete/<int:id>", methods=["POST"])
 def delete_patient(id):
-    if 'user_id' not in session:
+    if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+    if (session['user_role'] != 'doctor'):
+        flash("Role khong hop le", "danger")
         return redirect(url_for('index'))
 
     user_id = session['user_id']
@@ -368,12 +451,20 @@ def delete_patient(id):
 # ---------------- Diagnosis ----------------
 @app.route('/diagnose', methods=['GET','POST'])
 def diagnose():
-    if 'user_id' not in session:
+    if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
         return redirect(url_for('index'))
+    show_patient_management = False
+    isDoctor = False
+    if (session['user_role'] == 'doctor'):
+        isDoctor = True
+        show_patient_management = True
 
     if request.method == 'GET':
-        return render_template('diagnosis.html', api_host=WEB_SERVER_HOST)
+        conn = get_db_conn()
+        patients = conn.execute("SELECT id, name FROM patients WHERE creator_ID = ?", (session['user_id'],)).fetchall()
+        conn.close()
+        return render_template('diagnosis.html', patient_id=session['user_id'], isDoctor=isDoctor, patients=patients, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST)
 
     # POST: lưu file và request vào DB
     file = request.files.get('file')
@@ -383,12 +474,21 @@ def diagnose():
     if not file or not model_name or not patient_id:
         return jsonify({"error": "Thiếu file, model hoặc mã bệnh nhân"}), 400
 
-    # Kiểm tra patient_id tồn tại và thuộc user hiện tại
     conn = get_db_conn()
-    patient = conn.execute(
-        "SELECT * FROM patients WHERE id = ? AND creator_id = ?",
-        (patient_id, session['user_id'])
-    ).fetchone()
+    if str(patient_id).startswith("BN_"):
+        user_patient_id = str(patient_id)[3:]
+        patient = conn.execute(
+            "SELECT id, full_name FROM users WHERE id = ?",
+            (user_patient_id,)
+        ).fetchone()
+        if int(user_patient_id) != int(session['user_id']):
+            patient = False
+    else:
+        patient = conn.execute(
+            "SELECT * FROM patients WHERE id = ? AND creator_id = ?",
+            (patient_id, session['user_id'])
+        ).fetchone()
+
     if not patient:
         conn.close()
         return jsonify({"error": "Mã bệnh nhân không tồn tại hoặc bạn không có quyền"}), 400
@@ -402,40 +502,31 @@ def diagnose():
     filename = f"{uuid.uuid4()}_{file.filename}"
     image.save(os.path.join(UPLOAD_FOLDER, filename))
 
-    # Gọi API server để inference
-    files = {'file': open(os.path.join(UPLOAD_FOLDER, filename), 'rb')}
-    data = {'model': model_name}
     try:
-        resp = requests.post(f"{AI_SERVER_HOST}/diagnose", data=data, files=files)
-        results = resp.json()
+        # Gửi task vào Celery
+        task = call_diagnosis_from_ai_server.apply_async(args=[filename, patient_id, model_name, session['user_id']])
     except requests.RequestException as e:
-        files['file'].close()
-        conn.close()
         return jsonify({"error": f"Lỗi kết nối API: {e}"}), 500
     finally:
-        files['file'].close()
+        conn.close()
 
-    # Lưu vào database
-    max_result = max(results, key=lambda x: x['score'])
-    conn.execute(
-        "INSERT INTO diagnoses (user_id, patient_id, model, image_filename, prediction, probability, timestamp) VALUES (?,?,?,?,?,?,?)",
-        (session['user_id'], patient_id, model_name, filename, max_result['label'], max_result['score'], datetime.now())
-    )
-    conn.commit()
-    conn.close()
-
-    return jsonify(results)
+    return jsonify({"task_id": task.id, "status": "queued"})
 
 
 # ---------------- Vision QA ----------------
 @app.route('/vision-qa', methods=['GET','POST'])
 def vision_qa():
-    if 'user_id' not in session:
+    if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
         return redirect(url_for('index'))
+    show_patient_management = False
+    isDoctor = False
+    if (session['user_role'] == 'doctor'):
+        show_patient_management = True
+        isDoctor = True
 
     if request.method == 'GET':
-        return render_template('vision_qa.html', api_host=WEB_SERVER_HOST)
+        return render_template('vision_qa.html', isDoctor=isDoctor, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST)
 
     file = request.files.get('file')
     question = request.form.get('question')

@@ -4,6 +4,7 @@ from PIL import Image
 import uuid, os, io
 from datetime import datetime
 from flask_cors import CORS
+import time
 
 app = Flask(__name__)
 CORS(app, origins=["http://10.102.196.113"], supports_credentials=True) # Allow all origins for API server
@@ -42,6 +43,7 @@ def diagnose():
     else:
         return jsonify({"error":"Model không hợp lệ"}),400
 
+    time.sleep(10)
     return jsonify(results)
 
 @app.route("/vqa-diagnose", methods=["POST"])

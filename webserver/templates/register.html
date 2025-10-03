@@ -136,12 +136,33 @@
             <label class="form-label fw-bold" data-key="register.password">Mật khẩu:</label>
             <input type="password" class="form-control" name="password" required>
           </div>
+        
+          <!-- Chọn vai trò -->
+          <div class="mb-3">
+            <label class="form-label fw-bold" data-key="register.role">Chọn vai trò:</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="role" id="role_patient" value="patient" required>
+              <label class="form-check-label" for="role_patient" data-key="register.role_patient">
+                Bệnh nhân
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="role" id="role_doctor" value="doctor" required>
+              <label class="form-check-label" for="role_doctor" data-key="register.role_doctor">
+                Bác sĩ
+              </label>
+            </div>
+          </div>
+        
           <div class="mb-3 form-check">
             <input type="checkbox" class="form-check-input" id="terms" name="terms" required>
-            <label class="form-check-label" for="terms" data-key="register.terms">Tôi đồng ý với <a href="{{ url_for('terms') }}">Điều khoản sử dụng</a></label>
+            <label class="form-check-label" for="terms" data-key="register.terms">
+              Tôi đồng ý với <a href="{{ url_for('terms') }}">Điều khoản sử dụng</a>
+            </label>
           </div>
           <button type="submit" class="btn btn-primary w-100" data-key="register.submit">Đăng ký</button>
         </form>
+        
         <div class="mt-3">
           <div class="login-container">
             <p data-key="register.login_prompt">Đã có tài khoản?</p>
@@ -160,6 +181,9 @@
         'register.email': 'Email:',
         'register.phone': 'Phone Number:',
         'register.password': 'Password:',
+        'register.role': 'Select role:',
+        'register.role_patient': 'Patient',
+        'register.role_doctor': 'Doctor',
         'register.terms': 'I agree to the <a href="{{ url_for('terms') }}">Terms and Conditions</a>',
         'register.submit': 'Register',
         'register.login_prompt': 'Already have an account?',
@@ -172,6 +196,9 @@
         'register.email': 'Email:',
         'register.phone': 'Số điện thoại:',
         'register.password': 'Mật khẩu:',
+        'register.role': 'Chọn vai trò:',
+        'register.role_patient': 'Bệnh nhân',
+        'register.role_doctor': 'Bác sĩ',
         'register.terms': 'Tôi đồng ý với <a href="{{ url_for('terms') }}">Điều khoản sử dụng</a>',
         'register.submit': 'Đăng ký',
         'register.login_prompt': 'Đã có tài khoản?',

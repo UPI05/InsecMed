@@ -1,0 +1,276 @@
+openapi: 3.0.0
+info:
+  title: InsecMed API
+  version: 1.0.0
+  description: >
+    API cho hệ thống chẩn đoán và quản lý bệnh nhân InsecMed.
+servers:
+  - url: http://10.102.196.113:5000
+
+paths:
+  /ping:
+    get:
+      summary: Kiểm tra server
+      description: Trả về pong để kiểm tra kết nối
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: pong
+
+  /register:
+    post:
+      summary: Đăng ký người dùng mới
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                full_name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                  format: password
+                phone:
+                  type: string
+                profile_pic:
+                  type: string
+                  format: binary
+      responses:
+        '302':
+          description: Redirect về trang login
+
+  /login:
+    post:
+      summary: Đăng nhập
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                  format: password
+      responses:
+        '302':
+          description: Redirect về pending cases khi thành công
+
+  /logout:
+    get:
+      summary: Đăng xuất
+      responses:
+        '302':
+          description: Redirect về trang login
+
+  /profile:
+    get:
+      summary: Xem thông tin profile
+      responses:
+        '200':
+          description: Trang profile HTML
+    post:
+      summary: Cập nhật profile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                full_name:
+                  type: string
+                phone:
+                  type: string
+                password:
+                  type: string
+                profile_pic:
+                  type: string
+                  format: binary
+      responses:
+        '302':
+          description: Redirect về trang profile
+
+  /history:
+    get:
+      summary: Xem lịch sử chẩn đoán và QA
+      responses:
+        '200':
+          description: Trang HTML lịch sử
+
+  /pending-cases:
+    get:
+      summary: Xem danh sách case đang chờ chẩn đoán (HTML)
+      responses:
+        '200':
+          description: Trang HTML pending cases
+
+  /api/pending_cases:
+    get:
+      summary: API trả danh sách case đang chờ chẩn đoán (JSON)
+      responses:
+        '200':
+          description: Danh sách case JSON
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    patient_name:
+                      type: string
+                    disease:
+                      type: string
+                    uploaded_at:
+                      type: string
+                      format: date-time
+                    prediction:
+                      type: string
+                      nullable: true
+
+  /patient-management:
+    get:
+      summary: Quản lý bệnh nhân (HTML)
+      responses:
+        '200':
+          description: Trang HTML quản lý bệnh nhân
+
+  /patients/add:
+    post:
+      summary: Thêm bệnh nhân
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+                age: {type: integer}
+                gender: {type: string}
+                phone: {type: string}
+                email: {type: string}
+                address: {type: string}
+      responses:
+        '302':
+          description: Redirect về trang quản lý bệnh nhân
+
+  /patients/update/{id}:
+    post:
+      summary: Cập nhật thông tin bệnh nhân
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+                age: {type: integer}
+                gender: {type: string}
+                phone: {type: string}
+                email: {type: string}
+                address: {type: string}
+      responses:
+        '302':
+          description: Redirect về trang quản lý bệnh nhân
+
+  /patients/delete/{id}:
+    post:
+      summary: Xóa bệnh nhân
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '302':
+          description: Redirect về trang quản lý bệnh nhân
+
+  /diagnose:
+    get:
+      summary: Giao diện chẩn đoán (HTML)
+      responses:
+        '200':
+          description: Trang HTML chẩn đoán
+    post:
+      summary: Gửi ảnh để chẩn đoán
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                model:
+                  type: string
+                patient_id:
+                  type: integer
+      responses:
+        '200':
+          description: Kết quả inference từ AI server
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    label: {type: string}
+                    score: {type: number}
+
+  /vision-qa:
+    get:
+      summary: Giao diện Vision QA (HTML)
+      responses:
+        '200':
+          description: Trang HTML Vision QA
+    post:
+      summary: Gửi ảnh và câu hỏi Vision QA
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                question:
+                  type: string
+      responses:
+        '200':
+          description: Câu trả lời của AI
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answer: {type: string}

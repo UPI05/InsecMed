@@ -28,7 +28,7 @@
     .modal-title { font-weight: bold; }
     .modal-body { padding: 20px; font-size: 1.1rem; text-align: center; }
     .modal-footer { border-top: none; justify-content: center; }
-    .btn-primary { background: #0052cc; border-color: #0052cc; }
+    .btn-primary { background: #2c3e50; border-color: #2c3e50; }
     .btn-primary:hover { background: #003d99; border-color: #003d99; }
   </style>
 </head>
@@ -56,11 +56,22 @@
 
       <div class="card p-4">
         <form id="diagnosisForm">
+          {% if isDoctor %}
           <!-- Mã bệnh nhân -->
           <div class="mb-3">
             <label class="form-label fw-bold">Mã bệnh nhân:</label>
-            <input type="text" class="form-control" name="patient_id" placeholder="Nhập Mã bệnh nhân" required>
+            <select class="form-select" name="patient_id" id="idSelect" required>
+              <option value="">-- Chọn bệnh nhân --</option>
+              {% for patient in patients %}
+                <option value="{{ patient[0] }}">
+                  {{ patient[0] }} - {{ patient[1] }}
+                </option>
+              {% endfor %}
+            </select>
           </div>
+          {% else %}
+          <input type="hidden" name="patient_id" value="BN_{{ patient_id }}">
+          {% endif %}
 
           <!-- Chọn loại bệnh -->
           <div class="mb-3">
@@ -97,19 +108,14 @@
 
         <div class="mt-4">
           <h5>Diagnosis Results</h5>
+          <!-- chỉ còn Prediction Chart tab -->
           <ul class="nav nav-tabs" id="resultTabs" role="tablist">
             <li class="nav-item" role="presentation">
-              <button class="nav-link active" id="json-tab" data-bs-toggle="tab" data-bs-target="#jsonTab" type="button" role="tab">Raw Results</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="chart-tab" data-bs-toggle="tab" data-bs-target="#chartTab" type="button" role="tab">Prediction Chart</button>
+              <button class="nav-link active" id="chart-tab" data-bs-toggle="tab" data-bs-target="#chartTab" type="button" role="tab">Prediction Chart</button>
             </li>
           </ul>
           <div class="tab-content mt-3">
-            <div class="tab-pane fade show active" id="jsonTab" role="tabpanel">
-              <pre><code id="result" class="language-json">Chưa có kết quả</code></pre>
-            </div>
-            <div class="tab-pane fade" id="chartTab" role="tabpanel">
+            <div class="tab-pane fade show active" id="chartTab" role="tabpanel">
               <canvas id="predictionChart"></canvas>
             </div>
           </div>
@@ -117,6 +123,17 @@
       </div>
     </div>
   </div>
+
+  <div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content" style="text-align:center; padding:2rem;">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Đang chẩn đoán, vui lòng đợi...</p>
+      </div>
+    </div>
+  </div>  
 
   <div class="modal fade" id="diagnosisAlert" tabindex="-1" aria-labelledby="diagnosisAlertLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -159,21 +176,22 @@
     // Disease -> Model dynamic
     const diseaseModels = {
       skin_cancer: [
-        { value: "skin_cancer_vit", text: "Vision Transformer (ViT)" },
-        { value: "efficient", text: "EfficientNet" },
-        { value: "resnet", text: "ResNet" }
+        { value: "skin_cancer_vit", text: "Độ chính xác cao" },
+        { value: "efficient", text: "Độ chính xác trung bình" },
+        { value: "resnet", text: "Độ chính xác thấp" }
       ],
       lung_cancer: [
-        { value: "pneumonia_vit", text: "Vision Transformer (ViT)" },
-        { value: "efficient", text: "EfficientNet" },
-        { value: "resnet", text: "ResNet" }
+        { value: "pneumonia_vit", text: "Độ chính xác cao" },
+        { value: "efficient", text: "Độ chính xác trung bình" },
+        { value: "resnet", text: "Độ chính xác thấp" }
       ],
       breast_cancer: [
-        { value: "breast_cancer_vit", text: "Vision Transformer (ViT)" },
-        { value: "efficient", text: "EfficientNet" },
-        { value: "resnet", text: "ResNet" }
+        { value: "breast_cancer_vit", text: "Độ chính xác cao" },
+        { value: "efficient", text: "Độ chính xác trung bình" },
+        { value: "resnet", text: "Độ chính xác thấp" }
       ]
     };
+    
 
     const diseaseSelect = document.getElementById("diseaseSelect");
     const modelSelect = document.getElementById("modelSelect");
@@ -197,79 +215,133 @@
     document.getElementById("diagnosisForm").addEventListener("submit", async function(e) {
       e.preventDefault();
 
-      let formData = new FormData(this); // patient_id, model, file đều có
+      let formData = new FormData(this);
 
-      let resultBox = document.getElementById("result");
       let chartCanvas = document.getElementById("predictionChart");
       let modalPredictionLabel = document.getElementById("modalPredictionLabel");
       let modalPredictionScore = document.getElementById("modalPredictionScore");
 
+      const loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
+      loadingModal.show(); // Hiển thị loading
+
       try {
-        let response = await fetch("{{ api_host }}/diagnose", {
-          method: "POST",
-          body: formData,
-          credentials: 'include'
-        });
+          // Gửi form đến /diagnose → nhận task_id
+          let response = await fetch("{{ api_host }}/diagnose", {
+              method: "POST",
+              body: formData,
+              credentials: 'include'
+          });
+          let data = await response.json();
+          if (!response.ok) throw new Error(data.error || "HTTP error " + response.status);
 
-        let data = await response.json();
-        if (!response.ok) throw new Error(data.error || "HTTP error " + response.status);
+          // Lấy danh sách task hiện tại
+          let taskList = JSON.parse(localStorage.getItem('taskList')) || [];
 
-        let jsonString = JSON.stringify(data, null, 2);
-        resultBox.textContent = jsonString;
-        resultBox.classList.add("language-json");
-        hljs.highlightElement(resultBox);
+          const isDoctor = {{ 'true' if isDoctor else 'false' }};
 
-        const labels = data.map(item => item.label);
-        const scores = data.map(item => item.score);
-        let maxScoreIndex = scores.indexOf(Math.max(...scores));
-        let maxLabel = labels[maxScoreIndex];
-        let maxScore = scores[maxScoreIndex];
+          const patientInput = document.querySelector('input[name="patient_id"]'); // hidden input
 
-        modalPredictionLabel.textContent = maxLabel;
-        modalPredictionScore.textContent = `Xác suất: ${(maxScore * 100).toFixed(2)}%`;
+          let patientId, diseaseText, modelText;
 
-        const predictionModal = new bootstrap.Modal(document.getElementById("diagnosisAlert"));
-        predictionModal.show();
+          if (isDoctor) {
+            const idOption = idSelect.options[idSelect.selectedIndex];
+            const diseaseOption = diseaseSelect.options[diseaseSelect.selectedIndex];
+            const modelOption = modelSelect.options[modelSelect.selectedIndex];
 
-        if (chartInstance) chartInstance.destroy();
-
-        chartInstance = new Chart(chartCanvas, {
-          type: 'bar',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Xác suất',
-              data: scores,
-              backgroundColor: 'rgba(0, 82, 204, 0.6)',
-              borderColor: 'rgba(244, 208, 63, 1)',
-              borderWidth: 1
-            }]
-          },
-          options: {
-            responsive: true,
-            scales: {
-              y: { beginAtZero: true, max: 1, title: { display: true, text: 'Xác suất' } },
-              x: { title: { display: true, text: 'Loại bệnh' }, ticks: { maxRotation: 45, minRotation: 45 } }
-            },
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                callbacks: {
-                  label: function(context) {
-                    return `Xác suất: ${(context.parsed.y * 100).toFixed(2)}%`;
-                  }
-                }
-              }
-            }
+            patientId = idOption ? idOption.text : '';
+            diseaseText = diseaseOption ? diseaseOption.text : '';
+            modelText = modelOption ? modelOption.text : '';
+          } else {
+            patientId = patientInput ? patientInput.value : '';
+            diseaseText = diseaseSelect.options[diseaseSelect.selectedIndex]?.text || '';
+            modelText = modelSelect.options[modelSelect.selectedIndex]?.text || '';
           }
-        });
-      } catch (err) {
-        console.error("Fetch error:", err);
-        resultBox.textContent = "Lỗi: " + err.message;
-        resultBox.classList.remove("language-json");
-        alert("Fetch error: " + err.message);
 
-        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+          // Tạo object lưu task info
+          const taskInfo = {
+            task_id: data.task_id,
+            patient_id: patientId,
+            disease: diseaseText,
+            model: modelText,
+            uploaded_at: new Date().toLocaleString()
+          };
+
+          // Thêm vào list nếu chưa có
+          taskList.push(taskInfo);
+
+          // Lưu lại vào localStorage
+          localStorage.setItem('taskList', JSON.stringify(taskList));
+
+          // Polling /diagnoseStatus/<task_id>
+          let result = null;
+          while (true) {
+              await new Promise(r => setTimeout(r, 1500)); // delay 1.5s
+              let statusResp = await fetch(`{{ api_host }}/diagnoseStatus/${data.task_id}`, { credentials: 'include', headers: { 'Cache-Control': 'no-cache' } });
+              let statusData = await statusResp.json();
+
+              if (statusData.status === "finished") {
+                  result = statusData.result;
+                  break;
+              } else if (statusData.status === "failed") {
+                  throw new Error(statusData.error || "Task failed");
+              }
+              // nếu status là "queued" hoặc "PENDING" → tiếp tục loop
+          }
+
+          // Hide loading modal
+          loadingModal.hide();
+
+          // Hiển thị kết quả modal + chart
+          const labels = result.map(item => item.label);
+          const scores = result.map(item => item.score);
+          let maxScoreIndex = scores.indexOf(Math.max(...scores));
+          let maxLabel = labels[maxScoreIndex];
+          let maxScore = scores[maxScoreIndex];
+
+          modalPredictionLabel.textContent = maxLabel;
+          modalPredictionScore.textContent = `Xác suất: ${(maxScore * 100).toFixed(2)}%`;
+
+          const predictionModal = new bootstrap.Modal(document.getElementById("diagnosisAlert"));
+          predictionModal.show();
+
+          if (chartInstance) chartInstance.destroy();
+
+          chartInstance = new Chart(chartCanvas, {
+              type: 'bar',
+              data: {
+                  labels: labels,
+                  datasets: [{
+                      label: 'Xác suất',
+                      data: scores,
+                      backgroundColor: 'rgba(0, 82, 204, 0.6)',
+                      borderColor: 'rgba(244, 208, 63, 1)',
+                      borderWidth: 1
+                  }]
+              },
+              options: {
+                  responsive: true,
+                  scales: {
+                      y: { beginAtZero: true, max: 1, title: { display: true, text: 'Xác suất' } },
+                      x: { title: { display: true, text: 'Loại bệnh' }, ticks: { maxRotation: 45, minRotation: 45 } }
+                  },
+                  plugins: {
+                      legend: { display: false },
+                      tooltip: {
+                          callbacks: {
+                              label: function(context) {
+                                  return `Xác suất: ${(context.parsed.y * 100).toFixed(2)}%`;
+                              }
+                          }
+                      }
+                  }
+              }
+          });
+
+      } catch (err) {
+          loadingModal.hide();
+          console.error("Fetch error:", err);
+          alert("Error: " + err.message);
+          if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
       }
     });
   </script>

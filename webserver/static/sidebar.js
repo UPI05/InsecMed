@@ -12,11 +12,17 @@ document.addEventListener("DOMContentLoaded", ()=>{
     localStorage.setItem("sidebarExpanded", sidebar.classList.contains("expanded"));
   });
 
-  if(localStorage.getItem("sidebarExpanded") === "true") {
+  if(localStorage.getItem("sidebarExpanded") === "false") {
+    sidebar.classList.remove("expanded");
+    body.classList.remove("sidebar-expanded");
+    body.classList.add("sidebar-collapsed");
+  } else {
+    // Mặc định expanded
     sidebar.classList.add("expanded");
     body.classList.add("sidebar-expanded");
     body.classList.remove("sidebar-collapsed");
   }
+  
 
   // Active page
   const currentPage = window.location.pathname.replace("/", "");
@@ -35,4 +41,5 @@ document.addEventListener("DOMContentLoaded", ()=>{
   });
   const savedLang = localStorage.getItem("language") || "vi";
   langIcon.className = savedLang==="en"?"fas fa-flag-usa":"fas fa-flag";
+
 });

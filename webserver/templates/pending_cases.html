@@ -9,22 +9,43 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
   <style>
-    .case-card {
-      border-radius: 15px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    body { background: #f5f7fa; }
+
+    /* Cards */
+    .card {
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
       transition: transform 0.2s, box-shadow 0.2s;
     }
-    .case-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
     }
-    .case-header { font-weight: 600; color: #0052cc; }
-    .case-sub { color: #6b7280; }
+    .card-title { font-weight: 600; color: #0052cc; }
+    .badge-status { font-weight: 500; }
+
     .no-cases {
       text-align: center;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       color: #6b7280;
       margin-top: 50px;
+    }
+
+    /* Clear button */
+    #clearTasksBtn {
+      min-width: 180px;
+    }
+
+    /* Content moves with sidebar */
+    .content {
+      padding: 20px;
+      transition: margin-left 0.3s;
+    }
+    body.sidebar-collapsed .content {
+      margin-left: 60px;
+    }
+    body.sidebar-expanded .content {
+      margin-left: 300px;
     }
   </style>
 </head>
@@ -32,51 +53,104 @@
 
   {% include 'sidebar.html' %}
 
-  <div class="content" style="margin-left:220px; padding:20px;">
-    <h2 class="mb-4 text-primary">Pending Cases</h2>
+  <div class="content">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2 class="text-primary mb-0">Pending Cases</h2>
+      <button id="clearTasksBtn" class="btn btn-outline-danger">
+        <i class="fas fa-trash-alt me-1"></i> Xóa Pending Cases
+      </button>
+    </div>
+
     <div id="casesContainer" class="row g-3"></div>
-    <div id="noCases" class="no-cases" style="display:none;">Không có case nào đang chờ</div>
+    <div id="noCases" class="no-cases" style="display:none;">Không có task nào đang chờ</div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+
   <script>
+    // Xóa Pending Cases
+    document.getElementById('clearTasksBtn').addEventListener('click', () => {
+      if (confirm('Bạn có chắc chắn muốn xóa tất cả Pending Cases không?')) {
+        localStorage.removeItem('taskList');
+        loadPendingCases();
+      }
+    });
+
+    // Load Pending Cases
     async function loadPendingCases() {
       const container = document.getElementById('casesContainer');
       const noCases = document.getElementById('noCases');
       container.innerHTML = '';
       noCases.style.display = 'none';
 
-      try {
-        const res = await fetch('{{api_host}}/api/pending_cases');
-        const data = await res.json();
+      let taskList = JSON.parse(localStorage.getItem('taskList')) || [];
+      if (!taskList.length) {
+        noCases.style.display = 'block';
+        noCases.textContent = 'Không có task nào đang chờ.';
+        return;
+      }
 
-        if (data.length === 0) {
-          noCases.style.display = 'block';
-          return;
-        }
+      for (let task of taskList) {
+        try {
+          const res = await fetch(`{{ api_host }}/diagnoseStatus/${task.task_id}`, { credentials: 'include' });
+          const data = await res.json();
 
-        data.forEach(caseItem => {
+          let statusText = '', badgeClass = '';
+          if (data.status === 'queued') { statusText = 'Đang chờ xử lý'; badgeClass='bg-warning text-dark'; }
+          else if (data.status === 'finished') { statusText = 'Hoàn thành'; badgeClass='bg-success'; }
+          else if (data.status === 'failed') { statusText = 'Thất bại'; badgeClass='bg-danger'; }
+          else { statusText = data.status; badgeClass='bg-secondary'; }
+
+          let resultHTML = '';
+          if (data.status === 'finished' && data.result) {
+            const max = data.result.reduce((p,c) => p.score>c.score?p:c, data.result[0]);
+            resultHTML = `
+              <p class="mb-1"><strong>Dự đoán:</strong> ${max.label}</p>
+              <p class="mb-1"><strong>Xác suất:</strong> ${(max.score*100).toFixed(2)}%</p>
+            `;
+          } else if (data.status === 'failed') {
+            resultHTML = `<p class="mb-1 text-danger"><strong>Lỗi:</strong> ${data.error}</p>`;
+          }
+
           const col = document.createElement('div');
-          col.className = 'col-md-4';
+          col.className = 'col-md-3 col-sm-6';
           col.innerHTML = `
-            <div class="card p-3 case-card">
-              <div class="case-header">${caseItem.patient_name}</div>
-              <div class="case-sub">Bệnh: ${caseItem.disease}</div>
-              <div class="case-sub">Uploaded: ${caseItem.uploaded_at}</div>
+            <div class="card mb-3 shadow-sm">
+              <div class="card-body">
+                <h5 class="card-title">${task.patient_id}</h5>
+                <p class="card-text mb-1"><strong>Bệnh:</strong> ${task.disease}</p>
+                <p class="card-text mb-1"><strong>Model:</strong> ${task.model}</p>
+                <p class="card-text mb-1"><strong>Thời gian:</strong> ${task.uploaded_at}</p>
+                <p class="card-text mb-1"><strong>Trạng thái:</strong> <span class="badge ${badgeClass} badge-status">${statusText}</span></p>
+                ${resultHTML}
+              </div>
             </div>
           `;
           container.appendChild(col);
-        });
 
-      } catch (err) {
-        console.error("Fetch error:", err);
-        noCases.textContent = 'Lỗi khi tải dữ liệu.';
-        noCases.style.display = 'block';
+        } catch(err) {
+          console.error(err);
+          const col = document.createElement('div');
+          col.className = 'col-md-3 col-sm-6';
+          col.innerHTML = `
+            <div class="card mb-3 shadow-sm">
+              <div class="card-body">
+                <h5 class="card-title">${task.patient_id}</h5>
+                <p class="card-text text-danger">Lỗi khi lấy trạng thái</p>
+              </div>
+            </div>
+          `;
+          container.appendChild(col);
+        }
       }
     }
 
-    document.addEventListener('DOMContentLoaded', loadPendingCases);
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPendingCases();
+      setInterval(loadPendingCases, 5000);
+    });
   </script>
 </body>
 </html>

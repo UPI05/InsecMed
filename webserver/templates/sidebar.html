@@ -3,7 +3,7 @@
     <i class="fas fa-bars"></i>
   </div>
 
-  <a href="/pending-cases">
+  <a href="/">
     <img src="/static/logo.png" alt="Logo" class="logo">
   </a>
 
@@ -20,15 +20,19 @@
       <i class="fas fa-clock"></i>
       <span class="nav-text">History & Statistics</span>
     </a>
+    {% if isDoctor %}
     <a class="nav-link" href="/pending-cases" data-page="pending-cases">
       <i class="fas fa-hourglass-half"></i>
       <span class="nav-text">Pending Cases</span>
     </a>
+    {% endif %}
+    {% if show_patient_management %}
     <!-- New Patient Management Menu -->
     <a class="nav-link" href="/patient-management" data-page="patient-management">
       <i class="fas fa-users"></i>
       <span class="nav-text">Patient Management</span>
     </a>
+    {% endif %}
   </div>
 
   <div class="menu-section menu-bottom">
@@ -74,3 +78,18 @@
     </div>
   </div>
 </div>
+{% if not isDoctor %}
+<style>
+  .sidebar {
+    background: linear-gradient(180deg,#16a085,#1e3c72);
+  }
+  .text-primary {
+    color: #1e3c72 !important;
+  }
+  .btn-primary {
+    border-color: #1e3c72 !important;
+    background: #1e3c72 !important;
+  }
+</style>
+  
+{% endif %}
