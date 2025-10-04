@@ -62,7 +62,8 @@
       </button>
     </div>
 
-    <div id="casesContainer" class="row g-3"></div>
+    <!-- row có g-4 để card cách nhau đẹp -->
+    <div id="casesContainer" class="row g-4"></div>
     <div id="noCases" class="no-cases" style="display:none;">Không có task nào đang chờ</div>
   </div>
 
@@ -93,6 +94,8 @@
       }
 
       for (let task of taskList) {
+        let taskTypeText = task['task_type'];
+
         try {
           const res = await fetch(`{{ api_host }}/diagnoseStatus/${task.task_id}`, { credentials: 'include' });
           const data = await res.json();
@@ -105,21 +108,29 @@
 
           let resultHTML = '';
           if (data.status === 'finished' && data.result) {
-            const max = data.result.reduce((p,c) => p.score>c.score?p:c, data.result[0]);
-            resultHTML = `
-              <p class="mb-1"><strong>Dự đoán:</strong> ${max.label}</p>
-              <p class="mb-1"><strong>Xác suất:</strong> ${(max.score*100).toFixed(2)}%</p>
-            `;
+            if (taskTypeText == 'Diagnosis') {
+              const max = data.result.reduce((p,c) => p.score>c.score?p:c, data.result[0]);
+              resultHTML = `
+                <p class="mb-1"><strong>Dự đoán:</strong> ${max.label}</p>
+                <p class="mb-1"><strong>Xác suất:</strong> ${(max.score*100).toFixed(2)}%</p>
+              `;
+            } else {
+              resultHTML = `
+                <p class="mb-1"><strong>Phản hồi:</strong> ${data.result.answer.replace(/\n/g, '<br>')}</p>
+              `;
+            }
           } else if (data.status === 'failed') {
             resultHTML = `<p class="mb-1 text-danger"><strong>Lỗi:</strong> ${data.error}</p>`;
           }
 
           const col = document.createElement('div');
-          col.className = 'col-md-3 col-sm-6';
+          // full width trên tablet & mobile (col-12), 1/3 màn hình trên desktop (col-lg-4)
+          col.className = 'col-12 col-lg-4';
           col.innerHTML = `
             <div class="card mb-3 shadow-sm">
               <div class="card-body">
                 <h5 class="card-title">${task.patient_id}</h5>
+                <p class="card-text mb-1"><strong>Loại task:</strong> ${taskTypeText}</p>
                 <p class="card-text mb-1"><strong>Bệnh:</strong> ${task.disease}</p>
                 <p class="card-text mb-1"><strong>Model:</strong> ${task.model}</p>
                 <p class="card-text mb-1"><strong>Thời gian:</strong> ${task.uploaded_at}</p>
@@ -133,11 +144,15 @@
         } catch(err) {
           console.error(err);
           const col = document.createElement('div');
-          col.className = 'col-md-3 col-sm-6';
+          col.className = 'col-12 col-lg-4';
           col.innerHTML = `
             <div class="card mb-3 shadow-sm">
               <div class="card-body">
                 <h5 class="card-title">${task.patient_id}</h5>
+                <p class="card-text mb-1"><strong>Loại task:</strong> ${taskTypeText}</p>
+                <p class="card-text mb-1"><strong>Bệnh:</strong> ${task.disease}</p>
+                <p class="card-text mb-1"><strong>Model:</strong> ${task.model}</p>
+                <p class="card-text mb-1"><strong>Thời gian:</strong> ${task.uploaded_at}</p>
                 <p class="card-text text-danger">Lỗi khi lấy trạng thái</p>
               </div>
             </div>

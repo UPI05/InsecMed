@@ -59,6 +59,7 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS qa_interactions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   user_id INTEGER,
+                  model TEXT,
                   patient_id INTEGER,
                   image_filename TEXT,
                   question TEXT,
@@ -107,10 +108,42 @@ def call_diagnosis_from_ai_server(self, filename, patient_id, model_name, user_i
 
     return results
 
+@celery.task(bind=True)
+def call_vision_qa_from_ai_server(self, filename, question, patient_id, model_name, user_id):
+    # Gọi API server để inference
+    files = {'file': open(os.path.join(UPLOAD_FOLDER, filename), 'rb')}
+    data = {'question': question, 'model': model_name}
+    resp = requests.post(f"{AI_SERVER_HOST}/vqa-diagnose", data=data, files=files)
+    results = resp.json()
+    # Lưu vào database
+    conn = get_db_conn()
+    conn.execute(
+        "INSERT INTO qa_interactions (user_id, patient_id, model, image_filename, question, answer, timestamp) VALUES (?,?,?,?,?,?,?)",
+        (user_id, patient_id, model_name, filename, question, results['answer'], datetime.now())
+    )
+    conn.commit()
+    conn.close()
+
+    return results
+
+
 @app.route('/diagnoseStatus/<task_id>')
 @limiter.limit("120 per minute")
-def task_status(task_id):
+def task_diagnosis_status(task_id):
     task = call_diagnosis_from_ai_server.AsyncResult(task_id)
+    if task.state == 'PENDING':
+        return jsonify({"status": "queued"})
+    elif task.state == 'SUCCESS':
+        return jsonify({"status": "finished", "result": task.result})
+    elif task.state == 'FAILURE':
+        return jsonify({"status": "failed", "error": str(task.info)})
+    else:
+        return jsonify({"status": task.state})
+
+@app.route('/vqaStatus/<task_id>')
+@limiter.limit("60 per minute")
+def task_visionqa_status(task_id):
+    task = call_vision_qa_from_ai_server.AsyncResult(task_id)
     if task.state == 'PENDING':
         return jsonify({"status": "queued"})
     elif task.state == 'SUCCESS':
@@ -302,7 +335,7 @@ def history():
     diagnoses = [dict(row) for row in c.fetchall()]
 
     # QA interactions
-    c.execute("SELECT image_filename,question,answer,timestamp FROM qa_interactions WHERE user_id=? ORDER BY timestamp DESC", (session['user_id'],))
+    c.execute("SELECT patient_id,model,image_filename,question,answer,timestamp FROM qa_interactions WHERE user_id=? ORDER BY timestamp DESC", (session['user_id'],))
     qa_interactions = [dict(row) for row in c.fetchall()]
 
     # Stats
@@ -489,14 +522,14 @@ def diagnose():
             (patient_id, session['user_id'])
         ).fetchone()
 
+    conn.close()
+
     if not patient:
-        conn.close()
         return jsonify({"error": "Mã bệnh nhân không tồn tại hoặc bạn không có quyền"}), 400
 
     try:
         image = Image.open(file)
     except Exception as e:
-        conn.close()
         return jsonify({"error": f"Lỗi đọc ảnh: {e}"}), 400
 
     filename = f"{uuid.uuid4()}_{file.filename}"
@@ -508,7 +541,7 @@ def diagnose():
     except requests.RequestException as e:
         return jsonify({"error": f"Lỗi kết nối API: {e}"}), 500
     finally:
-        conn.close()
+        pass
 
     return jsonify({"task_id": task.id, "status": "queued"})
 
@@ -526,43 +559,56 @@ def vision_qa():
         isDoctor = True
 
     if request.method == 'GET':
-        return render_template('vision_qa.html', isDoctor=isDoctor, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST)
+        conn = get_db_conn()
+        patients = conn.execute("SELECT id, name FROM patients WHERE creator_ID = ?", (session['user_id'],)).fetchall()
+        conn.close()
+        return render_template('vision_qa.html', isDoctor=isDoctor, patient_id=session['user_id'], patients=patients, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST)
 
     file = request.files.get('file')
     question = request.form.get('question')
+    model_name = request.form.get('model')
+    patient_id = request.form.get('patient_id')
 
     if not file or not question:
         return jsonify({"error": "Thiếu file hoặc câu hỏi"}), 400
+
+    conn = get_db_conn()
+    if str(patient_id).startswith("BN_"):
+        user_patient_id = str(patient_id)[3:]
+        patient = conn.execute(
+            "SELECT id, full_name FROM users WHERE id = ?",
+            (user_patient_id,)
+        ).fetchone()
+        if int(user_patient_id) != int(session['user_id']):
+            patient = False
+    else:
+        patient = conn.execute(
+            "SELECT * FROM patients WHERE id = ? AND creator_id = ?",
+            (patient_id, session['user_id'])
+        ).fetchone()
+
+    conn.close()
+
+    if not patient:
+        return jsonify({"error": "Mã bệnh nhân không tồn tại hoặc bạn không có quyền"}), 400
 
     try:
         image = Image.open(file)
     except Exception as e:
         return jsonify({"error": f"Lỗi đọc ảnh: {e}"}), 400
 
-    filename = f"{uuid.uuid4()}_{file.filename}"
+    filename = f"vqa_{uuid.uuid4()}_{file.filename}"
     image.save(os.path.join(UPLOAD_FOLDER, filename))
 
-    # Gọi API server để trả lời (hiện tại tạm thời đóng)
-    files = {'file': open(os.path.join(UPLOAD_FOLDER, filename), 'rb')}
-    data = {'question': question}
     try:
-        resp = requests.post(f"{AI_SERVER_HOST}/vqa-diagnose", data=data, files=files)
-        results = resp.json()
+        # Gửi task vào Celery
+        task = call_vision_qa_from_ai_server.apply_async(args=[filename, question, patient_id, model_name, session['user_id']])
     except requests.RequestException as e:
         return jsonify({"error": f"Lỗi kết nối API: {e}"}), 500
     finally:
-        files['file'].close()
+        pass
 
-    # Lưu vào database
-    conn = get_db_conn()
-    conn.execute(
-        "INSERT INTO qa_interactions (user_id,image_filename,question,answer,timestamp) VALUES (?,?,?,?,?)",
-        (session['user_id'], filename, question, results.get('answer','Temporarily closed'), datetime.now())
-    )
-    conn.commit()
-    conn.close()
-
-    return jsonify(results)
+    return jsonify({"task_id": task.id, "status": "queued"})
 
 
 # ---------------- Main ----------------
