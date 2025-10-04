@@ -221,9 +221,6 @@
       let modalPredictionLabel = document.getElementById("modalPredictionLabel");
       let modalPredictionScore = document.getElementById("modalPredictionScore");
 
-      const loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
-      loadingModal.show(); // Hiển thị loading
-
       try {
           // Gửi form đến /diagnose → nhận task_id
           let response = await fetch("{{ api_host }}/diagnose", {
@@ -231,8 +228,28 @@
               body: formData,
               credentials: 'include'
           });
-          let data = await response.json();
-          if (!response.ok) throw new Error(data.error || "HTTP error " + response.status);
+          
+          // Đọc raw text (tránh parse JSON lỗi)
+          let text = await response.text();
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch {
+            data = { error: text }; // fallback nếu không phải JSON
+          }
+
+          if (!response.ok) {
+            // Khi server rate-limit thì status thường là 429
+            // hoặc text chứa "Too many requests"
+            if (response.status === 429 || text.includes("Too many requests")) {
+              throw new Error("Too many requests"); 
+            }
+            throw new Error(data.error || ("HTTP error " + response.status));
+          }
+
+
+          const loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
+          loadingModal.show(); // Hiển thị loading
 
           // Lấy danh sách task hiện tại
           let taskList = JSON.parse(localStorage.getItem('taskList')) || [];
@@ -339,7 +356,6 @@
           });
 
       } catch (err) {
-          loadingModal.hide();
           console.error("Fetch error:", err);
           alert("Error: " + err.message);
           if (chartInstance) { chartInstance.destroy(); chartInstance = null; }

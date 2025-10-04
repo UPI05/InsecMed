@@ -88,7 +88,7 @@ def get_db_conn():
     conn.row_factory = sqlite3.Row
     return conn
 # -----------------Celery ----------------
-@celery.task(bind=True)
+@celery.task(bind=True, queue='pipeline_a')
 def call_diagnosis_from_ai_server(self, filename, patient_id, model_name, user_id):
     # Gọi API server để inference
     files = {'file': open(os.path.join(UPLOAD_FOLDER, filename), 'rb')}
@@ -108,7 +108,7 @@ def call_diagnosis_from_ai_server(self, filename, patient_id, model_name, user_i
 
     return results
 
-@celery.task(bind=True)
+@celery.task(bind=True, queue='pipeline_b')
 def call_vision_qa_from_ai_server(self, filename, question, patient_id, model_name, user_id):
     # Gọi API server để inference
     files = {'file': open(os.path.join(UPLOAD_FOLDER, filename), 'rb')}
@@ -128,7 +128,7 @@ def call_vision_qa_from_ai_server(self, filename, question, patient_id, model_na
 
 
 @app.route('/diagnoseStatus/<task_id>')
-@limiter.limit("120 per minute")
+@limiter.limit("60 per second")
 def task_diagnosis_status(task_id):
     task = call_diagnosis_from_ai_server.AsyncResult(task_id)
     if task.state == 'PENDING':
@@ -141,7 +141,7 @@ def task_diagnosis_status(task_id):
         return jsonify({"status": task.state})
 
 @app.route('/vqaStatus/<task_id>')
-@limiter.limit("60 per minute")
+@limiter.limit("60 per second")
 def task_visionqa_status(task_id):
     task = call_vision_qa_from_ai_server.AsyncResult(task_id)
     if task.state == 'PENDING':
@@ -483,6 +483,7 @@ def delete_patient(id):
 
 # ---------------- Diagnosis ----------------
 @app.route('/diagnose', methods=['GET','POST'])
+@limiter.limit("1 per minute", methods=["POST"]) 
 def diagnose():
     if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
@@ -548,6 +549,7 @@ def diagnose():
 
 # ---------------- Vision QA ----------------
 @app.route('/vision-qa', methods=['GET','POST'])
+@limiter.limit("2 per 10 minutes", methods=["POST"]) 
 def vision_qa():
     if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")

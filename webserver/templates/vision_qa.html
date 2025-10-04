@@ -199,13 +199,29 @@
         const resultBox = document.getElementById("result");
         const modalAnswerText = document.getElementById("modalAnswerText");
 
-        const loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
-        loadingModal.show(); // Hiển thị loading
-
         try {
           const res = await fetch("{{ api_host }}/vision-qa", { method: "POST", body: fd, credentials: "include" });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+
+          // Đọc raw text (tránh parse JSON lỗi)
+          let text = await res.text();
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch {
+            data = { error: text }; // fallback nếu không phải JSON
+          }
+
+          if (!res.ok) {
+            // Khi server rate-limit thì status thường là 429
+            // hoặc text chứa "Too many requests"
+            if (res.status === 429 || text.includes("Too many requests")) {
+              throw new Error("Too many requests"); 
+            }
+            throw new Error(data.error || ("HTTP error " + res.status));
+          }
+
+          const loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
+          loadingModal.show(); // Hiển thị loading
 
           // Lấy danh sách task hiện tại
           let taskList = JSON.parse(localStorage.getItem('taskList')) || [];
