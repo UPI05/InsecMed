@@ -5,6 +5,7 @@ import uuid, os
 from flask_cors import CORS
 import time
 import torch
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 CORS(app, origins=["http://10.102.196.113"], supports_credentials=True) # Allow all origins for API server
@@ -44,7 +45,7 @@ def diagnose():
     except Exception as e:
         return jsonify({"error":f"Lỗi đọc ảnh: {e}"}),400
 
-    filename = f"{uuid.uuid4()}_{file.filename}"
+    filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
     image.save(os.path.join(UPLOAD_FOLDER, filename))
 
     if model_name=="skin_cancer_vit":

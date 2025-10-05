@@ -6,9 +6,28 @@ import uuid
 from PIL import Image
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.utils import secure_filename
+from flask_talisman import Talisman
+from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
+
+talisman = Talisman(
+    app,
+    session_cookie_secure=False,         # Không bật Secure cookie (dev)
+    session_cookie_samesite='Strict',    # SameSite Strict để chống CSRF
+    force_https=False,                   # Không redirect HTTP -> HTTPS (dev)
+    frame_options='DENY',                # X-Frame-Options: DENY (chống clickjacking)
+    content_security_policy={            # CSP: hạn chế nhúng iframe
+        "frame-ancestors": "'self'"
+    }
+)
+
+# limit upload size
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 # server host
 WEB_SERVER_HOST = 'http://10.102.196.113'
@@ -34,6 +53,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Database
 DB_FILE = 'insecmed.db'
+
+def allowed_ext(filename):
+    return '.' in filename and filename.rsplit('.',1)[1].lower() in ALLOWED_EXTENSIONS
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -136,7 +158,7 @@ def task_diagnosis_status(task_id):
     elif task.state == 'SUCCESS':
         return jsonify({"status": "finished", "result": task.result})
     elif task.state == 'FAILURE':
-        return jsonify({"status": "failed", "error": str(task.info)})
+        return jsonify({"status": "failed", "error": "private"}) #str(task.info)
     else:
         return jsonify({"status": task.state})
 
@@ -171,6 +193,7 @@ def terms():
 
 
 @app.route('/register', methods=['GET', 'POST'])
+@limiter.limit("2 per minute")
 def register():
     if request.method == 'POST':
         full_name = request.form.get('full_name')
@@ -198,13 +221,14 @@ def register():
             conn.close()
             return redirect(url_for('register'))
 
-        from flask_bcrypt import Bcrypt
         bcrypt = Bcrypt(app)
         password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
 
         filename = None
         if profile_pic and profile_pic.filename:
-            filename = f"{uuid.uuid4()}_{profile_pic.filename}"
+            filename = f"{uuid.uuid4()}_{secure_filename(profile_pic.filename)}"
+            if not allowed_ext(filename):
+                return jsonify({"error": "Invalid format"})
             profile_pic.save(os.path.join(PROFILE_PIC_FOLDER, filename))
 
         # thêm role vào insert
@@ -222,6 +246,7 @@ def register():
 
 
 @app.route('/login', methods=['GET','POST'])
+@limiter.limit("3 per minute")
 def login():
     if request.method == 'POST':
         email = request.form.get('email')
@@ -291,7 +316,9 @@ def profile():
         filename = old_pic
 
         if profile_pic and profile_pic.filename:
-            filename = f"{uuid.uuid4()}_{profile_pic.filename}"
+            filename = f"{uuid.uuid4()}_{secure_filename(profile_pic.filename)}"
+            if not allowed_ext(filename):
+                return jsonify({"error": "Invalid format"})
             profile_pic.save(os.path.join(PROFILE_PIC_FOLDER, filename))
             if old_pic and os.path.exists(os.path.join(PROFILE_PIC_FOLDER, old_pic)):
                 os.remove(os.path.join(PROFILE_PIC_FOLDER, old_pic))
@@ -396,6 +423,7 @@ def patient_management():
 
 
 @app.route("/patients/add", methods=["POST"])
+@limiter.limit("3 per minute")
 def add_patient():
     if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
@@ -419,6 +447,7 @@ def add_patient():
 
 
 @app.route("/patients/update/<int:id>", methods=["POST"])
+@limiter.limit("3 per minute")
 def update_patient(id):
     if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
@@ -453,6 +482,7 @@ def update_patient(id):
 
 
 @app.route("/patients/delete/<int:id>", methods=["POST"])
+@limiter.limit("3 per minute")
 def delete_patient(id):
     if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
@@ -483,7 +513,7 @@ def delete_patient(id):
 
 # ---------------- Diagnosis ----------------
 @app.route('/diagnose', methods=['GET','POST'])
-@limiter.limit("1 per minute", methods=["POST"]) 
+@limiter.limit("3 per minute", methods=["POST"]) 
 def diagnose():
     if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
@@ -531,16 +561,18 @@ def diagnose():
     try:
         image = Image.open(file)
     except Exception as e:
-        return jsonify({"error": f"Lỗi đọc ảnh: {e}"}), 400
+        return jsonify({"error": "Lỗi đọc ảnh"}), 400
 
-    filename = f"{uuid.uuid4()}_{file.filename}"
+    filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
+    if not allowed_ext(filename):
+                return jsonify({"error": "Invalid format"})
     image.save(os.path.join(UPLOAD_FOLDER, filename))
 
     try:
         # Gửi task vào Celery
         task = call_diagnosis_from_ai_server.apply_async(args=[filename, patient_id, model_name, session['user_id']])
     except requests.RequestException as e:
-        return jsonify({"error": f"Lỗi kết nối API: {e}"}), 500
+        return jsonify({"error": "Lỗi kết nối API"}), 500
     finally:
         pass
 
@@ -597,16 +629,18 @@ def vision_qa():
     try:
         image = Image.open(file)
     except Exception as e:
-        return jsonify({"error": f"Lỗi đọc ảnh: {e}"}), 400
+        return jsonify({"error": "Lỗi đọc ảnh"}), 400
 
-    filename = f"vqa_{uuid.uuid4()}_{file.filename}"
+    filename = f"vqa_{uuid.uuid4()}_{secure_filename(file.filename)}"
+    if not allowed_ext(filename):
+                return jsonify({"error": "Invalid format"})
     image.save(os.path.join(UPLOAD_FOLDER, filename))
 
     try:
         # Gửi task vào Celery
         task = call_vision_qa_from_ai_server.apply_async(args=[filename, question, patient_id, model_name, session['user_id']])
     except requests.RequestException as e:
-        return jsonify({"error": f"Lỗi kết nối API: {e}"}), 500
+        return jsonify({"error": "Lỗi kết nối API"}), 500
     finally:
         pass
 
@@ -615,4 +649,4 @@ def vision_qa():
 
 # ---------------- Main ----------------
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
