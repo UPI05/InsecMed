@@ -3,7 +3,6 @@ import sqlite3, os, secrets, requests
 from datetime import datetime
 from celery import Celery
 import uuid
-from PIL import Image
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.utils import secure_filename
@@ -11,7 +10,7 @@ from flask_talisman import Talisman
 from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)
+app.secret_key = "inseclab"
 
 talisman = Talisman(
     app,
@@ -27,11 +26,12 @@ talisman = Talisman(
 # limit upload size
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'nrrd', 'hdr', 'img', 'nii', 'gz', 'dcm'}
 
 # server host
 WEB_SERVER_HOST = 'http://10.102.196.113'
 AI_SERVER_HOST = 'http://10.102.196.113:8080'
+IMG_SERVER_HOST = 'http://10.102.196.113:8000'
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["100 per hour"])
@@ -528,7 +528,7 @@ def diagnose():
         conn = get_db_conn()
         patients = conn.execute("SELECT id, name FROM patients WHERE creator_ID = ?", (session['user_id'],)).fetchall()
         conn.close()
-        return render_template('diagnosis.html', patient_id=session['user_id'], isDoctor=isDoctor, patients=patients, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST)
+        return render_template('diagnosis.html', patient_id=session['user_id'], isDoctor=isDoctor, patients=patients, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST, img_host=IMG_SERVER_HOST)
 
     # POST: lưu file và request vào DB
     file = request.files.get('file')
@@ -558,15 +558,11 @@ def diagnose():
     if not patient:
         return jsonify({"error": "Mã bệnh nhân không tồn tại hoặc bạn không có quyền"}), 400
 
-    try:
-        image = Image.open(file)
-    except Exception as e:
-        return jsonify({"error": "Lỗi đọc ảnh"}), 400
-
     filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
     if not allowed_ext(filename):
                 return jsonify({"error": "Invalid format"})
-    image.save(os.path.join(UPLOAD_FOLDER, filename))
+    
+    file.save(os.path.join(UPLOAD_FOLDER, filename))
 
     try:
         # Gửi task vào Celery
@@ -576,7 +572,7 @@ def diagnose():
     finally:
         pass
 
-    return jsonify({"task_id": task.id, "status": "queued"})
+    return jsonify({"task_id": task.id, "status": "queued"}), 200
 
 
 # ---------------- Vision QA ----------------
@@ -596,7 +592,7 @@ def vision_qa():
         conn = get_db_conn()
         patients = conn.execute("SELECT id, name FROM patients WHERE creator_ID = ?", (session['user_id'],)).fetchall()
         conn.close()
-        return render_template('vision_qa.html', isDoctor=isDoctor, patient_id=session['user_id'], patients=patients, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST)
+        return render_template('vision_qa.html', isDoctor=isDoctor, patient_id=session['user_id'], patients=patients, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST, img_host=IMG_SERVER_HOST)
 
     file = request.files.get('file')
     question = request.form.get('question')
@@ -626,15 +622,10 @@ def vision_qa():
     if not patient:
         return jsonify({"error": "Mã bệnh nhân không tồn tại hoặc bạn không có quyền"}), 400
 
-    try:
-        image = Image.open(file)
-    except Exception as e:
-        return jsonify({"error": "Lỗi đọc ảnh"}), 400
-
     filename = f"vqa_{uuid.uuid4()}_{secure_filename(file.filename)}"
     if not allowed_ext(filename):
                 return jsonify({"error": "Invalid format"})
-    image.save(os.path.join(UPLOAD_FOLDER, filename))
+    file.save(os.path.join(UPLOAD_FOLDER, filename))
 
     try:
         # Gửi task vào Celery

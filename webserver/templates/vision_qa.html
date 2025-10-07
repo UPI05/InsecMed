@@ -4,16 +4,10 @@
   <meta charset="UTF-8">
   <title>InsecMed - Medical Vision Q&A</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
-
-  <!-- Bootstrap & Fonts -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-
-  <!-- Sidebar CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
-
-  <!-- Page-specific CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/vs.min.css">
   <style>
     body { background:#f5f7fa; margin:0; transition:padding-left .3s ease; }
@@ -27,10 +21,8 @@
 </head>
 <body class="sidebar-collapsed">
 
-  <!-- Sidebar -->
   {% include 'sidebar.html' %}
 
-  <!-- Content -->
   <div class="content">
     <div class="container py-5">
       <div class="text-center mb-4">
@@ -40,15 +32,12 @@
       <div class="card p-4">
         <form id="questionForm">
           {% if isDoctor %}
-          <!-- Mã bệnh nhân -->
           <div class="mb-3">
             <label class="form-label fw-bold">Mã bệnh nhân:</label>
             <select class="form-select" name="patient_id" id="idSelect" required>
               <option value="">-- Chọn bệnh nhân --</option>
               {% for patient in patients %}
-                <option value="{{ patient[0] }}">
-                  {{ patient[0] }} - {{ patient[1] }}
-                </option>
+                <option value="{{ patient[0] }}">{{ patient[0] }} - {{ patient[1] }}</option>
               {% endfor %}
             </select>
           </div>
@@ -56,18 +45,14 @@
             <input type="hidden" name="patient_id" value="BN_{{ patient_id }}">
           {% endif %}
 
-          <!-- Chọn loại bệnh -->
           <div class="mb-3">
             <label class="form-label fw-bold">Chọn loại bệnh:</label>
             <select class="form-select" id="diseaseSelect" required>
               <option value="">-- Chọn loại bệnh --</option>
               <option value="general">Chẩn đoán tổng quát</option>
-              <!-- <option value="lung_cancer">Ung thư phổi</option>
-              <option value="breast_cancer">Ung thư vú</option> -->
             </select>
           </div>
 
-          <!-- Chọn model -->
           <div class="mb-3">
             <label class="form-label fw-bold">Chọn model:</label>
             <select class="form-select" name="model" id="modelSelect" required disabled>
@@ -76,20 +61,23 @@
           </div>
 
           <div class="mb-3">
-            <label class="form-label fw-bold">Chọn ảnh (png/jpg/jpeg):</label>
-            <input type="file" class="form-control" name="file" accept="image/*" required>
-          </div>
-          <div class="mb-3">
             <label class="form-label fw-bold">Câu hỏi:</label>
             <textarea class="form-control" name="question" rows="4" placeholder="Nhập câu hỏi..." required></textarea>
           </div>
-          <button type="submit" class="btn btn-primary w-100">Gửi câu hỏi</button>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Chọn ảnh:</label>
+            <input type="file" class="form-control" name="file" accept=".png,.jpg,.jpeg,.dcm" required>
+          </div>
+
+          <button type="submit" id="submitBtn" class="btn btn-primary w-100">Gửi câu hỏi</button>
         </form>
 
         <div class="mt-4">
           <h5>Image Preview</h5>
           <img id="imagePreview" style="display:none;">
         </div>
+
         <div class="mt-4">
           <h5>Answer Output</h5>
           <pre><code id="result" class="language-json">Chưa có câu trả lời</code></pre>
@@ -97,18 +85,47 @@
       </div>
     </div>
 
+    <!-- Loading -->
     <div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="text-align:center; padding:2rem;">
-          <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-          </div>
+          <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
           <p>Đang chẩn đoán, vui lòng đợi...</p>
         </div>
       </div>
-    </div>  
+    </div>
 
-    <!-- Modal for Answer -->
+    <!-- Modal Loading khi upload -->
+    <div class="modal fade" id="uploadLoadingModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content text-center p-4">
+          <div class="spinner-border text-primary mb-3" role="status"></div>
+          <h5>Đang xử lý ảnh...</h5>
+          <p class="text-muted mb-0">Vui lòng chờ trong giây lát</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal cảnh báo ảnh không phải y tế -->
+    <div class="modal fade" id="nonMedicalConfirmModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-warning text-dark">
+            <h5 class="modal-title">Cảnh báo</h5>
+          </div>
+          <div class="modal-body">
+            Ảnh tải lên <strong>KHÔNG PHẢI ảnh y tế</strong>.<br>
+            Bạn có chắc muốn tiếp tục chẩn đoán với ảnh này?
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="cancelProceedBtn">Hủy</button>
+            <button type="button" class="btn btn-primary" id="confirmProceedBtn">Tiếp tục</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Answer Modal -->
     <div class="modal fade" id="answerAlert" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -122,106 +139,150 @@
         </div>
       </div>
     </div>
-
-    <!-- Notifications Modal -->
-    <div class="modal fade" id="notificationsModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header bg-primary text-white"><h5 class="modal-title">Notifications</h5></div>
-          <div class="modal-body"><p>Không có thông báo mới.</p></div>
-        </div>
-      </div>
-    </div>
   </div>
 
-  <!-- JS Libraries -->
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/json.min.js"></script>
-
-  <!-- Sidebar JS -->
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
 
-  <!-- Page JS -->
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       hljs.highlightAll();
-
-      // Image preview
-      document.querySelector('input[name="file"]').addEventListener("change", e => {
-        const f = e.target.files[0];
-        const p = document.getElementById("imagePreview");
-        if (f) { p.src = URL.createObjectURL(f); p.style.display = "block"; }
-        else { p.src = ""; p.style.display = "none"; }
-      });
-
-      // Disease -> Model dynamic
-      const diseaseModels = {
-        general: [
-          { value: "med-gemma-4b", text: "Độ chính xác cao" },
-          // { value: "efficient", text: "Độ chính xác trung bình" },
-          // { value: "resnet", text: "Độ chính xác thấp" }
-        ],
-        // lung_cancer: [
-        //   { value: "pneumonia_vit", text: "Độ chính xác cao" },
-        //   { value: "efficient", text: "Độ chính xác trung bình" },
-        //   { value: "resnet", text: "Độ chính xác thấp" }
-        // ],
-        // breast_cancer: [
-        //   { value: "breast_cancer_vit", text: "Độ chính xác cao" },
-        //   { value: "efficient", text: "Độ chính xác trung bình" },
-        //   { value: "resnet", text: "Độ chính xác thấp" }
-        // ]
-      };
-      
-
+    
       const diseaseSelect = document.getElementById("diseaseSelect");
       const modelSelect = document.getElementById("modelSelect");
-
+      const fileInput = document.querySelector('input[name="file"]');
+      const preview = document.getElementById("imagePreview");
+      const submitBtn = document.getElementById("submitBtn");
+      const form = document.getElementById("questionForm");
+      const resultBox = document.getElementById("result");
+      const uploadLoadingModal = new bootstrap.Modal(document.getElementById("uploadLoadingModal"));
+      const nonMedicalModal = new bootstrap.Modal(document.getElementById("nonMedicalConfirmModal"));
+      let userConfirmedProceed = false;
+    
+      // --- Chọn model ---
+      const diseaseModels = {
+        general: [{ value: "med-gemma-4b", text: "Độ chính xác cao" }]
+      };
       diseaseSelect.addEventListener("change", function() {
         const selectedDisease = this.value;
         modelSelect.innerHTML = '<option value="">-- Chọn model --</option>';
         modelSelect.disabled = !selectedDisease;
         if (selectedDisease && diseaseModels[selectedDisease]) {
-          diseaseModels[selectedDisease].forEach(model => {
-            const option = document.createElement("option");
-            option.value = model.value;
-            option.text = model.text;
-            modelSelect.appendChild(option);
+          diseaseModels[selectedDisease].forEach(m => {
+            const opt = document.createElement("option");
+            opt.value = m.value;
+            opt.text = m.text;
+            modelSelect.appendChild(opt);
           });
         }
       });
 
-      // Form submit
-      document.getElementById("questionForm").addEventListener("submit", async e => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        const resultBox = document.getElementById("result");
-        const modalAnswerText = document.getElementById("modalAnswerText");
-
+      convertedImageFile = null;
+    
+      // --- Khi người dùng chọn ảnh ---
+      fileInput.addEventListener("change", async e => {
+        convertedImageFile = null;
+        const file = e.target.files[0];
+        if (!file) {
+          preview.style.display = "none";
+          submitBtn.disabled = true;
+          return;
+        }
+    
+        submitBtn.disabled = true; // Tạm khóa cho đến khi ảnh hợp lệ
+        userConfirmedProceed = false;
+        resultBox.textContent = "";
+    
         try {
-          const res = await fetch("{{ api_host }}/vision-qa", { method: "POST", body: fd, credentials: "include" });
+          let processedFile = file;
+          // Danh sách extension hợp lệ
+          const allowedExtensions = ['.dcm', '.jpg', '.jpeg', '.png', '.nii', '.gz', '.hdr', '.img', '.nrrd'];
 
-          // Đọc raw text (tránh parse JSON lỗi)
-          let text = await res.text();
-          let data;
-          try {
-            data = JSON.parse(text);
-          } catch {
-            data = { error: text }; // fallback nếu không phải JSON
+          // Lấy tên file và chuyển về lowercase
+          const filename = file.name.toLowerCase();
+
+          // Kiểm tra xem filename có kết thúc bằng bất kỳ extension nào trong list
+          if (!allowedExtensions.some(ext => filename.endsWith(ext))) {
+              throw new Error(`File không hợp lệ: chỉ cho phép ${allowedExtensions.join(', ')}`);
           }
 
+          uploadLoadingModal.show();
+
+          // Nếu là file DICOM → convert trước
+          const convertForm = new FormData();
+          convertForm.append("image", file);
+          const convertResp = await fetch("{{ img_host }}/convert", { method: "POST", body: convertForm });
+          if (!convertResp.ok) throw new Error("Không thể convert ảnh");
+          const blob = await convertResp.blob();
+          processedFile = new File([blob], file.name + ".png", { type: "image/png" });
+          preview.src = URL.createObjectURL(blob);
+          
+    
+          preview.style.display = "block";
+    
+          // Infer để kiểm tra xem có phải ảnh y tế không
+          const inferForm = new FormData();
+          inferForm.append("image", processedFile);
+          const inferResp = await fetch("{{ img_host }}/infer", { method: "POST", body: inferForm });
+          uploadLoadingModal.hide();
+          if (!inferResp.ok) throw new Error("Không thể kiểm tra loại ảnh");
+  
+          const inferData = await inferResp.json();
+          if (inferData.prediction === "Positive") {
+            submitBtn.disabled = false; // Ảnh y tế → cho phép gửi
+          } else {
+            // Không phải ảnh y tế → hỏi người dùng
+            nonMedicalModal.show();
+
+            document.getElementById("cancelProceedBtn").onclick = () => {
+              nonMedicalModal.hide();
+              fileInput.value = "";
+              preview.src = "";
+              preview.style.display = "none";
+              submitBtn.disabled = true;
+            };
+      
+            document.getElementById("confirmProceedBtn").onclick = () => {
+              nonMedicalModal.hide();
+              convertedImageFile = processedFile;
+              submitBtn.disabled = false;
+              form.requestSubmit();
+            };
+
+          }
+        } catch (err) {
+          alert("Lỗi xử lý ảnh: " + err.message);
+          preview.style.display = "none";
+          submitBtn.disabled = true;
+        }
+      });
+    
+      // --- Submit form như cũ ---
+      form.addEventListener("submit", async e => {
+        e.preventDefault();
+        submitBtn.disabled = true;
+        resultBox.textContent = "Đang xử lý...";
+    
+        const fd = new FormData(e.target);
+        if (convertedImageFile) {
+          fd.set("file", convertedImageFile);
+        }
+    
+        try {
+          const res = await fetch("{{ api_host }}/vision-qa", { method: "POST", body: fd, credentials: "include" });
+          const text = await res.text();
+          let data; try { data = JSON.parse(text); } catch { data = { error: text }; }
           if (!res.ok) {
-            // Khi server rate-limit thì status thường là 429
-            // hoặc text chứa "Too many requests"
             if (res.status === 429 || text.includes("Too many requests")) {
               throw new Error("Too many requests"); 
             }
             throw new Error(data.error || ("HTTP error " + res.status));
           }
-
+    
           const loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
-          loadingModal.show(); // Hiển thị loading
+          loadingModal.show();
 
           // Lấy danh sách task hiện tại
           let taskList = JSON.parse(localStorage.getItem('taskList')) || [];
@@ -261,37 +322,29 @@
 
           // Lưu lại vào localStorage
           localStorage.setItem('taskList', JSON.stringify(taskList));
-
-          // Polling /vqaStatus/<task_id>
+    
           let result = null;
           while (true) {
-              await new Promise(r => setTimeout(r, 5000)); // delay 5s
-              let statusResp = await fetch(`{{ api_host }}/vqaStatus/${data.task_id}`, { credentials: 'include', headers: { 'Cache-Control': 'no-cache' } });
-              let statusData = await statusResp.json();
-
-              if (statusData.status === "finished") {
-                  result = statusData.result;
-                  break;
-              } else if (statusData.status === "failed") {
-                  throw new Error(statusData.error || "Task failed");
-              }
-              // nếu status là "queued" hoặc "PENDING" → tiếp tục loop
+            await new Promise(r => setTimeout(r, 5000));
+            const statusResp = await fetch(`{{ api_host }}/vqaStatus/${data.task_id}`, { credentials: 'include' });
+            const statusData = await statusResp.json();
+            if (statusData.status === "finished") { result = statusData.result; break; }
+            if (statusData.status === "failed") throw new Error(statusData.error || "Task failed");
           }
-
-          // Hide loading modal
+    
           loadingModal.hide();
-
           resultBox.style.color = 'green';
-          resultBox.textContent = result['answer'];//JSON.stringify(result, null, 2);
+          resultBox.textContent = result.answer;
           hljs.highlightElement(resultBox);
-          //modalAnswerText.textContent = result || "Không có câu trả lời";
-          //new bootstrap.Modal(document.getElementById("answerAlert")).show();
-        } catch(err) {
+        } catch (err) {
           resultBox.textContent = "Lỗi: " + err.message;
           alert("Fetch error: " + err.message);
+        } finally {
+          submitBtn.disabled = false;
         }
       });
     });
-  </script>
+    </script>
+    
 </body>
 </html>

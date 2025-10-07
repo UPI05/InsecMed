@@ -1,0 +1,5 @@
+# Worker 1: chạy queue "pipeline1"
+celery -A app.celery worker -Q pipeline_a --concurrency=2 --loglevel=info
+
+# Worker 2: chạy queue "pipeline2"
+celery -A app.celery worker -Q pipeline_b --concurrency=2 --loglevel=info

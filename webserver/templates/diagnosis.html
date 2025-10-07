@@ -94,7 +94,7 @@
 
           <!-- Chọn ảnh -->
           <div class="mb-3">
-            <label class="form-label fw-bold">Chọn ảnh (png/jpg/jpeg):</label>
+            <label class="form-label fw-bold">Chọn ảnh:</label>
             <input type="file" class="form-control" name="file" accept="image/*" required>
           </div>
 
@@ -119,6 +119,36 @@
               <canvas id="predictionChart"></canvas>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Loading khi upload -->
+  <div class="modal fade" id="uploadLoadingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content text-center p-4">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <h5>Đang xử lý ảnh...</h5>
+        <p class="text-muted mb-0">Vui lòng chờ trong giây lát</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal cảnh báo ảnh không phải y tế -->
+  <div class="modal fade" id="nonMedicalConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-warning text-dark">
+          <h5 class="modal-title">Cảnh báo</h5>
+        </div>
+        <div class="modal-body">
+          Ảnh tải lên <strong>KHÔNG PHẢI ảnh y tế</strong>.<br>
+          Bạn có chắc muốn tiếp tục chẩn đoán với ảnh này?
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelProceedBtn">Hủy</button>
+          <button type="button" class="btn btn-primary" id="confirmProceedBtn">Tiếp tục</button>
         </div>
       </div>
     </div>
@@ -159,21 +189,7 @@
     document.addEventListener("DOMContentLoaded", () => {
       hljs.highlightAll();
     });
-
-    // Image preview
-    document.querySelector('input[name="file"]').addEventListener("change", function(e) {
-      const file = e.target.files[0];
-      const previewImage = document.getElementById("imagePreview");
-      if (file) {
-        previewImage.src = URL.createObjectURL(file);
-        previewImage.style.display = "block";
-      } else {
-        previewImage.src = "";
-        previewImage.style.display = "none";
-      }
-    });
-
-    // Disease -> Model dynamic
+    
     const diseaseModels = {
       skin_cancer: [
         { value: "skin_cancer_vit", text: "Độ chính xác cao" },
@@ -192,10 +208,21 @@
       ]
     };
     
-
     const diseaseSelect = document.getElementById("diseaseSelect");
     const modelSelect = document.getElementById("modelSelect");
-
+    const fileInput = document.querySelector('input[name="file"]');
+    const submitBtn = document.querySelector('#diagnosisForm button[type="submit"]');
+    const previewImage = document.getElementById("imagePreview");
+    let chartInstance = null;
+    let convertedImageFile = null;
+    
+    submitBtn.disabled = true;
+    
+    const uploadLoadingModal = new bootstrap.Modal(document.getElementById("uploadLoadingModal"));
+    const nonMedicalModal = new bootstrap.Modal(document.getElementById("nonMedicalConfirmModal"));
+    let userConfirmedProceed = false;
+    
+    // ---- Khi chọn loại bệnh ----
     diseaseSelect.addEventListener("change", function() {
       const selectedDisease = this.value;
       modelSelect.innerHTML = '<option value="">-- Chọn model --</option>';
@@ -209,122 +236,188 @@
         });
       }
     });
+    
+    // ---- Khi chọn ảnh ----
+    fileInput.addEventListener("change", async function(e) {
+      const file = e.target.files[0];
+      previewImage.style.display = "none";
+      convertedImageFile = null;
+      submitBtn.disabled = true;
+      userConfirmedProceed = false;
+    
+      if (!file) return;
+    
+      previewImage.src = URL.createObjectURL(file);
+      previewImage.style.display = "block";
+    
+      try {
+        let processedFile = file;
+        // Danh sách extension hợp lệ
+        const allowedExtensions = ['.dcm', '.jpg', '.jpeg', '.png', '.nii', '.gz', '.hdr', '.img', '.nrrd'];
 
-    let chartInstance = null;
+        // Lấy tên file và chuyển về lowercase
+        const filename = file.name.toLowerCase();
 
+        // Kiểm tra xem filename có kết thúc bằng bất kỳ extension nào trong list
+        if (!allowedExtensions.some(ext => filename.endsWith(ext))) {
+            throw new Error(`File không hợp lệ: chỉ cho phép ${allowedExtensions.join(', ')}`);
+        }
+
+        uploadLoadingModal.show();
+
+        // 1️⃣ Gọi API convert
+        let formData = new FormData();
+        formData.append("image", file);
+    
+        let convertResp = await fetch("{{ img_host }}/convert", { method: "POST", body: formData });
+        if (!convertResp.ok) throw new Error("Không thể convert ảnh.");
+    
+        const pngBlob = await convertResp.blob();
+        const pngFile = new File([pngBlob], file.name + ".png", { type: "image/png" });
+        previewImage.src = URL.createObjectURL(pngBlob);
+    
+        // 2️⃣ Gọi API infer
+        let inferForm = new FormData();
+        inferForm.append("image", pngFile);
+    
+        let inferResp = await fetch("{{ img_host }}/infer", { method: "POST", body: inferForm });
+        if (!inferResp.ok) throw new Error("Không thể kiểm tra loại ảnh.");
+    
+        let inferData = await inferResp.json();
+    
+        uploadLoadingModal.hide();
+    
+        if (inferData.prediction !== "Positive") {
+          nonMedicalModal.show();
+    
+          document.getElementById("cancelProceedBtn").onclick = () => {
+            nonMedicalModal.hide();
+            fileInput.value = "";
+            previewImage.src = "";
+            previewImage.style.display = "none";
+            submitBtn.disabled = true;
+          };
+    
+          document.getElementById("confirmProceedBtn").onclick = () => {
+            nonMedicalModal.hide();
+            userConfirmedProceed = true;
+            convertedImageFile = pngFile;
+            submitBtn.disabled = false;
+            document.getElementById("diagnosisForm").requestSubmit();
+          };
+    
+          return;
+        }
+    
+        // Là ảnh y tế
+        convertedImageFile = pngFile;
+        submitBtn.disabled = false;
+    
+      } catch (err) {
+        uploadLoadingModal.hide();
+        alert("Lỗi xử lý ảnh: " + err.message);
+        console.error(err);
+        fileInput.value = "";
+        previewImage.src = "";
+        previewImage.style.display = "none";
+        submitBtn.disabled = true;
+      }
+    });
+    
+    // ---- Khi submit form ----
     document.getElementById("diagnosisForm").addEventListener("submit", async function(e) {
       e.preventDefault();
-
+      submitBtn.disabled = true;
+    
       let formData = new FormData(this);
-
-      let chartCanvas = document.getElementById("predictionChart");
-      let modalPredictionLabel = document.getElementById("modalPredictionLabel");
-      let modalPredictionScore = document.getElementById("modalPredictionScore");
-
+      if (convertedImageFile) {
+        formData.set("file", convertedImageFile);
+      }
+    
+      const chartCanvas = document.getElementById("predictionChart");
+      const modalPredictionLabel = document.getElementById("modalPredictionLabel");
+      const modalPredictionScore = document.getElementById("modalPredictionScore");
+    
       try {
-          // Gửi form đến /diagnose → nhận task_id
-          let response = await fetch("{{ api_host }}/diagnose", {
-              method: "POST",
-              body: formData,
-              credentials: 'include'
-          });
-          
-          // Đọc raw text (tránh parse JSON lỗi)
-          let text = await response.text();
-          let data;
-          try {
-            data = JSON.parse(text);
-          } catch {
-            data = { error: text }; // fallback nếu không phải JSON
-          }
+        let response = await fetch("{{ api_host }}/diagnose", {
+          method: "POST",
+          body: formData,
+          credentials: 'include'
+        });
+    
+        let text = await response.text();
+        let data;
+        try { data = JSON.parse(text); } catch { data = { error: text }; }
+    
+        if (!response.ok) throw new Error(data.error || ("HTTP error " + response.status));
+    
+        const loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
+        loadingModal.show();
 
-          if (!response.ok) {
-            // Khi server rate-limit thì status thường là 429
-            // hoặc text chứa "Too many requests"
-            if (response.status === 429 || text.includes("Too many requests")) {
-              throw new Error("Too many requests"); 
-            }
-            throw new Error(data.error || ("HTTP error " + response.status));
-          }
+        // Lấy danh sách task hiện tại
+        let taskList = JSON.parse(localStorage.getItem('taskList')) || [];
 
+        const isDoctor = {{ 'true' if isDoctor else 'false' }};
 
-          const loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
-          loadingModal.show(); // Hiển thị loading
+        const patientInput = document.querySelector('input[name="patient_id"]'); // hidden input
 
-          // Lấy danh sách task hiện tại
-          let taskList = JSON.parse(localStorage.getItem('taskList')) || [];
+        let patientId, diseaseText, modelText;
 
-          const isDoctor = {{ 'true' if isDoctor else 'false' }};
+        if (isDoctor) {
+          const idOption = idSelect.options[idSelect.selectedIndex];
+          const diseaseOption = diseaseSelect.options[diseaseSelect.selectedIndex];
+          const modelOption = modelSelect.options[modelSelect.selectedIndex];
 
-          const patientInput = document.querySelector('input[name="patient_id"]'); // hidden input
+          patientId = idOption ? idOption.text : '';
+          diseaseText = diseaseOption ? diseaseOption.text : '';
+          modelText = modelOption ? modelOption.text : '';
+        } else {
+          patientId = patientInput ? patientInput.value : '';
+          diseaseText = diseaseSelect.options[diseaseSelect.selectedIndex]?.text || '';
+          modelText = modelSelect.options[modelSelect.selectedIndex]?.text || '';
+        }
 
-          let patientId, diseaseText, modelText;
+        // Tạo object lưu task info
+        const taskInfo = {
+          task_type: "Diagnosis",
+          task_id: data.task_id,
+          patient_id: patientId,
+          disease: diseaseText,
+          model: modelText,
+          uploaded_at: new Date().toLocaleString()
+        };
 
-          if (isDoctor) {
-            const idOption = idSelect.options[idSelect.selectedIndex];
-            const diseaseOption = diseaseSelect.options[diseaseSelect.selectedIndex];
-            const modelOption = modelSelect.options[modelSelect.selectedIndex];
+        // Thêm vào list nếu chưa có
+        taskList.push(taskInfo);
 
-            patientId = idOption ? idOption.text : '';
-            diseaseText = diseaseOption ? diseaseOption.text : '';
-            modelText = modelOption ? modelOption.text : '';
-          } else {
-            patientId = patientInput ? patientInput.value : '';
-            diseaseText = diseaseSelect.options[diseaseSelect.selectedIndex]?.text || '';
-            modelText = modelSelect.options[modelSelect.selectedIndex]?.text || '';
-          }
-
-          // Tạo object lưu task info
-          const taskInfo = {
-            task_type: "Diagnosis",
-            task_id: data.task_id,
-            patient_id: patientId,
-            disease: diseaseText,
-            model: modelText,
-            uploaded_at: new Date().toLocaleString()
-          };
-
-          // Thêm vào list nếu chưa có
-          taskList.push(taskInfo);
-
-          // Lưu lại vào localStorage
-          localStorage.setItem('taskList', JSON.stringify(taskList));
-
-          // Polling /diagnoseStatus/<task_id>
-          let result = null;
-          while (true) {
-              await new Promise(r => setTimeout(r, 1500)); // delay 1.5s
-              let statusResp = await fetch(`{{ api_host }}/diagnoseStatus/${data.task_id}`, { credentials: 'include', headers: { 'Cache-Control': 'no-cache' } });
-              let statusData = await statusResp.json();
-
-              if (statusData.status === "finished") {
-                  result = statusData.result;
-                  break;
-              } else if (statusData.status === "failed") {
-                  throw new Error(statusData.error || "Task failed");
-              }
-              // nếu status là "queued" hoặc "PENDING" → tiếp tục loop
-          }
-
-          // Hide loading modal
-          loadingModal.hide();
-
-          // Hiển thị kết quả modal + chart
-          const labels = result.map(item => item.label);
-          const scores = result.map(item => item.score);
-          let maxScoreIndex = scores.indexOf(Math.max(...scores));
-          let maxLabel = labels[maxScoreIndex];
-          let maxScore = scores[maxScoreIndex];
-
-          modalPredictionLabel.textContent = maxLabel;
-          modalPredictionScore.textContent = `Xác suất: ${(maxScore * 100).toFixed(2)}%`;
-
-          const predictionModal = new bootstrap.Modal(document.getElementById("diagnosisAlert"));
-          predictionModal.show();
-
-          if (chartInstance) chartInstance.destroy();
-
-          chartInstance = new Chart(chartCanvas, {
+        // Lưu lại vào localStorage
+        localStorage.setItem('taskList', JSON.stringify(taskList));
+    
+        // --- Poll kết quả ---
+        let result = null;
+        while (true) {
+          await new Promise(r => setTimeout(r, 1500));
+          let statusResp = await fetch(`{{ api_host }}/diagnoseStatus/${data.task_id}`, { credentials: 'include' });
+          let statusData = await statusResp.json();
+          if (statusData.status === "finished") { result = statusData.result; break; }
+          if (statusData.status === "failed") throw new Error(statusData.error || "Task failed");
+        }
+    
+        loadingModal.hide();
+        submitBtn.disabled = false;
+    
+        const labels = result.map(r => r.label);
+        const scores = result.map(r => r.score);
+        const maxIndex = scores.indexOf(Math.max(...scores));
+    
+        modalPredictionLabel.textContent = labels[maxIndex];
+        modalPredictionScore.textContent = `Xác suất: ${(scores[maxIndex] * 100).toFixed(2)}%`;
+    
+        const predictionModal = new bootstrap.Modal(document.getElementById("diagnosisAlert"));
+        predictionModal.show();
+    
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(chartCanvas, {
               type: 'bar',
               data: {
                   labels: labels,
@@ -354,13 +447,15 @@
                   }
               }
           });
-
+    
       } catch (err) {
-          console.error("Fetch error:", err);
-          alert("Error: " + err.message);
-          if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+        alert("Error: " + err.message);
+        console.error(err);
+        submitBtn.disabled = false;
       }
     });
-  </script>
+    </script>
+    
+
 </body>
 </html>

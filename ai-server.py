@@ -20,6 +20,8 @@ breast_cancer_model = pipeline("image-classification", model="Falah/vit-base-bre
 
 
 # Vision qa models
+
+#terminal auth: hf-auth-login
 model_id = "google/medgemma-4b-it"
 
 model = AutoModelForImageTextToText.from_pretrained(
