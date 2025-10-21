@@ -8,9 +8,18 @@ from flask_limiter.util import get_remote_address
 from werkzeug.utils import secure_filename
 from flask_talisman import Talisman
 from flask_bcrypt import Bcrypt
+from flasgger import Swagger
+import yaml
 
 app = Flask(__name__)
 app.secret_key = "inseclab"
+
+# --- Đọc file OpenAPI YAML ---
+with open("api-docs-flasgger.yaml", "r", encoding="utf-8") as f:
+    openapi_spec = yaml.safe_load(f)
+
+# --- Gắn Swagger UI với file YAML ---
+swagger = Swagger(app, template=openapi_spec)
 
 talisman = Talisman(
     app,

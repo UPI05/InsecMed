@@ -79,8 +79,10 @@
             <select class="form-select" id="diseaseSelect" required>
               <option value="">-- Chọn loại bệnh --</option>
               <option value="skin_cancer">Ung thư da</option>
-              <option value="lung_cancer">Ung thư phổi</option>
+              <option value="pneumonia">Viêm phổi</option>
               <option value="breast_cancer">Ung thư vú</option>
+              <option value="covid_19">Covid 19</option>
+              <option value="brain_tumor">U não</option>
             </select>
           </div>
 
@@ -94,7 +96,7 @@
 
           <!-- Chọn ảnh -->
           <div class="mb-3">
-            <label class="form-label fw-bold">Chọn ảnh:</label>
+            <label class="form-label fw-bold">Chọn ảnh (png, jpg, jpeg, nrrd, hdr, img, nii, gz, dcm) — tối đa 10MB:</label>
             <input type="file" class="form-control" name="file" accept="image/*" required>
           </div>
 
@@ -192,19 +194,20 @@
     
     const diseaseModels = {
       skin_cancer: [
-        { value: "skin_cancer_vit", text: "Độ chính xác cao" },
-        { value: "efficient", text: "Độ chính xác trung bình" },
-        { value: "resnet", text: "Độ chính xác thấp" }
+        { value: "skin_cancer_vit", text: "Độ chính xác cao - Vision transformer (ViT)" },
       ],
-      lung_cancer: [
-        { value: "pneumonia_vit", text: "Độ chính xác cao" },
-        { value: "efficient", text: "Độ chính xác trung bình" },
-        { value: "resnet", text: "Độ chính xác thấp" }
+      pneumonia: [
+        { value: "pneumonia_vit", text: "Độ chính xác cao - Vision transformer (ViT)" },
       ],
       breast_cancer: [
-        { value: "breast_cancer_vit", text: "Độ chính xác cao" },
-        { value: "efficient", text: "Độ chính xác trung bình" },
-        { value: "resnet", text: "Độ chính xác thấp" }
+        { value: "breast_cancer_vit", text: "Độ chính xác cao - Vision transformer (ViT)" },
+      ],
+      covid_19: [
+        { value: "covid19_vit", text: "Độ chính xác cao - Vision transformer (ViT)" },
+      ],
+      brain_tumor: [
+        { value: "brain_tumor_vit", text: "Độ chính xác cao - Vision transformer (ViT)" },
+        { value: "brain_tumor_resnet", text: "Độ chính xác khá cao - Resnet50" },
       ]
     };
     

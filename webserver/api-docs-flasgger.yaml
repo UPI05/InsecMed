@@ -1,0 +1,260 @@
+info:
+  title: InsecMed API
+  version: 1.0.0
+  description: 'API cho hệ thống chẩn đoán và quản lý bệnh nhân InsecMed.
+
+    '
+paths:
+  /ping:
+    get:
+      summary: Kiểm tra server
+      description: Trả về pong để kiểm tra kết nối
+      responses:
+        '200':
+          description: OK
+  /register:
+    post:
+      summary: Đăng ký người dùng mới
+      responses:
+        '302':
+          description: Redirect về trang login
+      parameters:
+      - name: full_name
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: email
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: password
+        in: formData
+        type: string
+        format: password
+        required: false
+        description: ''
+      - name: phone
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: profile_pic
+        in: formData
+        type: string
+        format: binary
+        required: false
+        description: ''
+  /login:
+    post:
+      summary: Đăng nhập
+      responses:
+        '302':
+          description: Redirect về pending cases khi thành công
+      parameters:
+      - name: email
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: password
+        in: formData
+        type: string
+        format: password
+        required: false
+        description: ''
+  /logout:
+    get:
+      summary: Đăng xuất
+      responses:
+        '302':
+          description: Redirect về trang login
+  /profile:
+    post:
+      summary: Cập nhật profile
+      responses:
+        '302':
+          description: Redirect về trang profile
+      parameters:
+      - name: full_name
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: phone
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: password
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: profile_pic
+        in: formData
+        type: string
+        format: binary
+        required: false
+        description: ''
+  /api/pending_cases:
+    get:
+      summary: Trả danh sách case đang chờ chẩn đoán
+      responses:
+        '200':
+          description: Danh sách case JSON
+  /patients/add:
+    post:
+      summary: Thêm bệnh nhân
+      responses:
+        '302':
+          description: Redirect về trang quản lý bệnh nhân
+      parameters:
+      - name: name
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: age
+        in: formData
+        type: integer
+        format: null
+        required: false
+        description: ''
+      - name: gender
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: phone
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: email
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: address
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+  /patients/update/{id}:
+    post:
+      summary: Cập nhật thông tin bệnh nhân
+      parameters:
+      - name: name
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: age
+        in: formData
+        type: integer
+        format: null
+        required: false
+        description: ''
+      - name: gender
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: phone
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: email
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: address
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      responses:
+        '302':
+          description: Redirect về trang quản lý bệnh nhân
+  /patients/delete/{id}:
+    post:
+      summary: Xóa bệnh nhân
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        '302':
+          description: Redirect về trang quản lý bệnh nhân
+  /diagnose:
+    post:
+      summary: Gửi ảnh để chẩn đoán
+      responses:
+        '200':
+          description: Kết quả inference từ AI server
+      parameters:
+      - name: file
+        in: formData
+        type: string
+        format: binary
+        required: false
+        description: ''
+      - name: model
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+      - name: patient_id
+        in: formData
+        type: integer
+        format: null
+        required: false
+        description: ''
+  /vision-qa:
+    post:
+      summary: Gửi ảnh và câu hỏi Vision QA
+      responses:
+        '200':
+          description: Câu trả lời của AI
+      parameters:
+      - name: file
+        in: formData
+        type: string
+        format: binary
+        required: false
+        description: ''
+      - name: question
+        in: formData
+        type: string
+        format: null
+        required: false
+        description: ''
+swagger: '2.0'
+schemes:
+- http
+host: 10.102.196.113
+basePath: /

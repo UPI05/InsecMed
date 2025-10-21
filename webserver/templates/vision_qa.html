@@ -66,7 +66,7 @@
           </div>
 
           <div class="mb-3">
-            <label class="form-label fw-bold">Chọn ảnh:</label>
+            <label class="form-label fw-bold">Chọn ảnh (png, jpg, jpeg, nrrd, hdr, img, nii, gz, dcm) — tối đa 10MB:</label>
             <input type="file" class="form-control" name="file" accept=".png,.jpg,.jpeg,.dcm" required>
           </div>
 
@@ -163,7 +163,7 @@
     
       // --- Chọn model ---
       const diseaseModels = {
-        general: [{ value: "med-gemma-4b", text: "Độ chính xác cao" }]
+        general: [{ value: "med-gemma-4b", text: "Độ chính xác cao - MedGemma 4b" }]
       };
       diseaseSelect.addEventListener("change", function() {
         const selectedDisease = this.value;

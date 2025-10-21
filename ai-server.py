@@ -17,8 +17,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 skin_cancer_model = pipeline("image-classification", model="Anwarkh1/Skin_Cancer-Image_Classification")
 pneumonia_model = pipeline("image-classification", model="lxyuan/vit-xray-pneumonia-classification")
 breast_cancer_model = pipeline("image-classification", model="Falah/vit-base-breast-cancer")
-
-
+covid19_model = pipeline("image-classification", model="DunnBC22/vit-base-patch16-224-in21k_covid_19_ct_scans")
+brain_tumor_model_vit = pipeline("image-classification", model="DunnBC22/vit-base-patch16-224-in21k_brain_tumor_diagnosis")
+brain_tumor_model_resnet50 = pipeline("image-classification", model="Alia-Mohammed/resnet-50-finetuned-brain-tumor")
 # Vision qa models
 
 #terminal auth: hf-auth-login
@@ -54,8 +55,14 @@ def diagnose():
         results = skin_cancer_model(image)
     elif model_name=="pneumonia_vit":
         results = pneumonia_model(image)
+    elif model_name=="covid19_vit":
+        results = covid19_model(image)
     elif model_name=="breast_cancer_vit":
         results = breast_cancer_model(image)
+    elif model_name=='brain_tumor_vit':
+        results = brain_tumor_model_vit(image)
+    elif model_name=='brain_tumor_resnet':
+        results = brain_tumor_model_resnet50(image)
     else:
         return jsonify({"error":"Model không hợp lệ"}),400
 
