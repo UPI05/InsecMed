@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>InsecMed - Diagnosis detail</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
+  <style>
+    body { background: #f5f7fa; }
+
+    /* Cards */
+    .card {
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+    .card-title { font-weight: 600; color: #0052cc; }
+    .badge-status { font-weight: 500; }
+
+    .no-cases {
+      text-align: center;
+      font-size: 1.1rem;
+      color: #6b7280;
+      margin-top: 50px;
+    }
+
+    /* Clear button */
+    #clearTasksBtn {
+      min-width: 180px;
+    }
+
+    /* Content moves with sidebar */
+    .content {
+      padding: 20px;
+      transition: margin-left 0.3s;
+    }
+    body.sidebar-collapsed .content {
+      margin-left: 60px;
+    }
+    body.sidebar-expanded .content {
+      margin-left: 300px;
+    }
+  </style>
+</head>
+<body class="sidebar-collapsed">
+
+  {% include 'sidebar.html' %}
+
+  <div class="content">
+
+    <h2 class="mb-4"><i class="fa-solid fa-microscope"></i> Diagnosis Detail</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show mt-3" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="row">
+      <!-- Diagnosis Info -->
+      <div class="col-md-7">
+        <div class="card p-3 mb-4">
+          <h5 class="card-title">🧪 Diagnosis Information</h5>
+          <p><strong>Model:</strong> {{ diagnosis.model }}</p>
+          <p><strong>Prediction:</strong>
+            <span class="badge bg-primary">{{ diagnosis.prediction }}</span>
+            ({{ (diagnosis.probability * 100) | round(2) }}%)
+          </p>
+          <p><strong>Timestamp:</strong> {{ diagnosis.timestamp }}</p>
+          <p><strong>Owner:</strong> {{ diagnosis.creator }}</p>
+        </div>
+
+        <!-- Update Patient Form -->
+
+        {% if showUpdate == True %}
+        <div class="card p-3 mb-4">
+          <h5 class="card-title">🧑‍⚕️ Update Patient</h5>
+          <form action="/update_patient_diagnosis" method="POST">
+            <input type="hidden" name="id" value="{{ diagnosis.id }}">
+            <label class="form-label">Patient ID:</label>
+            <input type="text" class="form-control" name="patient_id" value="{{ diagnosis.patient_id }}">
+            <button class="btn btn-success mt-3"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+          </form>
+        </div>
+        {% endif %}
+
+        <!-- Share Diagnosis Form -->
+        <div class="card p-3">
+          <h5 class="card-title">📤 Share Diagnosis</h5>
+          <form action="/share_diagnosis" method="POST">
+            <input type="hidden" name="id" value="{{ diagnosis.id }}">
+            <label class="form-label">Share to User ID:</label>
+            <input type="text" class="form-control" name="user_id" placeholder="Enter user ID">
+            <button class="btn btn-primary mt-3"><i class="fa-solid fa-share-from-square"></i> Share</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Image Preview -->
+      <div class="col-md-5">
+        <div class="card p-3">
+          <h5 class="card-title">📍 Scanned Image</h5>
+          <img src="{{ url_for('static', filename='uploads/' ~ diagnosis.image_filename) }}" 
+               alt="Diagnosis Image" class="img-fluid rounded shadow">
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</body>
+</html>

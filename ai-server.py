@@ -32,15 +32,39 @@ model = AutoModelForImageTextToText.from_pretrained(
 )
 processor = AutoProcessor.from_pretrained(model_id)
 
+def normalize_results(results):
+    # Nếu là dict duy nhất → bọc vào list
+    if isinstance(results, dict):
+        return [results]
+    return results
+
+
+def parse_model_names(model_name_str):
+    if not model_name_str:
+        return []
+
+    # Tách theo dấu phẩy và làm sạch
+    models = [m.strip() for m in model_name_str.split(",")]
+
+    # Loại bỏ chuỗi rỗng + loại trùng nhau, giữ đúng thứ tự xuất hiện
+    unique_models = []
+    seen = set()
+
+    for m in models:
+        if m and m not in seen:
+            unique_models.append(m)
+            seen.add(m)
+
+    return unique_models
 
 
 # ----- Diagnosis -----
 @app.route("/diagnose", methods=["POST"])
 def diagnose():
-    model_name = request.form.get("model")
+    model_names = request.form.get("model")
     file = request.files.get("file")
 
-    if not model_name or not file:
+    if not model_names or not file:
         return jsonify({"error":"Thiếu model hoặc file ảnh"}),400
 
     try:
@@ -51,22 +75,88 @@ def diagnose():
     filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
     image.save(os.path.join(UPLOAD_FOLDER, filename))
 
-    if model_name=="skin_cancer_vit":
-        results = skin_cancer_model(image)
-    elif model_name=="pneumonia_vit":
-        results = pneumonia_model(image)
-    elif model_name=="covid19_vit":
-        results = covid19_model(image)
-    elif model_name=="breast_cancer_vit":
-        results = breast_cancer_model(image)
-    elif model_name=='brain_tumor_vit':
-        results = brain_tumor_model_vit(image)
-    elif model_name=='brain_tumor_resnet':
-        results = brain_tumor_model_resnet50(image)
-    else:
-        return jsonify({"error":"Model không hợp lệ"}),400
+    models = parse_model_names(model_names)
 
-    return jsonify(results)
+    final_results = []
+
+    model_map = {
+        "skin_cancer_vit": "Ung thư da",
+        "pneumonia_vit": "Viêm phổi",
+        "covid19_vit": "Covid-19",
+        "breast_cancer_vit": "Ung thư vú",
+        "brain_tumor_vit": "U não - A",
+        "brain_tumor_resnet": "U não - B"
+    }
+
+    for model_name in models:
+        if model_name=="skin_cancer_vit":
+            results = normalize_results(skin_cancer_model(image))
+            label_map = {
+                "melanocytic_Nevi": "Nốt ruồi lành tính",
+                "benign_keratosis-like_lesions": "Tổn thương sừng lành tính",
+                "melanoma": "U ác tính",
+                "actinic_keratoses": "Dày sừng ánh sáng",
+                "basal_cell_carcinoma": "Ung thư biểu mô tế bào đáy"
+            }
+
+        elif model_name=="pneumonia_vit":
+            results = normalize_results(pneumonia_model(image))
+            label_map = {
+                "NORMAL": "Phổi bình thường",
+                "PNEUMONIA": "Viêm phổi"
+            }
+
+        elif model_name=="covid19_vit":
+            results = normalize_results(covid19_model(image))
+            label_map = {
+                "CT_COVID": "Hình ảnh CT có dấu hiệu COVID-19",
+                "CT_NonCOVID": "Hình ảnh CT không có dấu hiệu COVID-19"
+            }
+
+        elif model_name=="breast_cancer_vit":
+            results = normalize_results(breast_cancer_model(image))
+            label_map = {
+                "class0": "Không bị ung thư vú",
+                "class1": "Bị ung thư vú"
+            }
+        elif model_name=='brain_tumor_vit':
+            results = normalize_results(brain_tumor_model_vit(image))
+            label_map = {
+                "yes": "Bị u não",
+                "no": "Không bị u não"
+            }
+        elif model_name=='brain_tumor_resnet':
+            results = normalize_results(brain_tumor_model_resnet50(image))
+            label_map = {
+                "meningioma": "U màng não",
+                "pituitary": "U tuyến yên",
+                "glioma": "U tế bào thần kinh đệm",
+                "notumor": "Không có khối u"
+            }
+        else:
+            return jsonify({"error":"Model không hợp lệ"}),400
+
+        # Áp dụng filter mapping
+        filtered_results = []
+        for r in results:
+            new_label = label_map.get(r["label"], r["label"])
+            filtered_results.append({
+                "label": new_label,
+                "score": round(r["score"], 4)
+            })
+        best = max(filtered_results, key=lambda x: x["score"])
+        new_model_name = model_map.get(model_name, model_name)
+        final_results.append({
+            "model": new_model_name,
+            "top_label": best["label"],
+            "top_score": best["score"],
+            "details": filtered_results
+        })
+
+    return jsonify({
+        "status": "finished",
+        "results": final_results
+    })
 
 @app.route("/vqa-diagnose", methods=["POST"])
 def vqa_diagnose():

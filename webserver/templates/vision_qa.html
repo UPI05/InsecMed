@@ -32,10 +32,10 @@
       <div class="card p-4">
         <form id="questionForm">
           {% if isDoctor %}
-          <div class="mb-3">
+          <div class="mb-3" hidden>
             <label class="form-label fw-bold">Mã bệnh nhân:</label>
-            <select class="form-select" name="patient_id" id="idSelect" required>
-              <option value="">-- Chọn bệnh nhân --</option>
+            <select class="form-select" name="patient_id" id="idSelect">
+              <option value="0">-- Chọn bệnh nhân --</option>
               {% for patient in patients %}
                 <option value="{{ patient[0] }}">{{ patient[0] }} - {{ patient[1] }}</option>
               {% endfor %}
@@ -45,18 +45,18 @@
             <input type="hidden" name="patient_id" value="BN_{{ patient_id }}">
           {% endif %}
 
-          <div class="mb-3">
+          <div class="mb-3" hidden>
             <label class="form-label fw-bold">Chọn loại bệnh:</label>
-            <select class="form-select" id="diseaseSelect" required>
+            <select class="form-select" id="diseaseSelect">
               <option value="">-- Chọn loại bệnh --</option>
               <option value="general">Chẩn đoán tổng quát</option>
             </select>
           </div>
 
-          <div class="mb-3">
+          <div class="mb-3" hidden>
             <label class="form-label fw-bold">Chọn model:</label>
-            <select class="form-select" name="model" id="modelSelect" required disabled>
-              <option value="">-- Chọn model --</option>
+            <select class="form-select" name="model" id="modelSelect">
+              <option value="med-gemma-4b">-- Chọn model --</option>
             </select>
           </div>
 
@@ -86,7 +86,7 @@
     </div>
 
     <!-- Loading -->
-    <div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="loadingModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="text-align:center; padding:2rem;">
           <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
@@ -96,7 +96,7 @@
     </div>
 
     <!-- Modal Loading khi upload -->
-    <div class="modal fade" id="uploadLoadingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="uploadLoadingModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content text-center p-4">
           <div class="spinner-border text-primary mb-3" role="status"></div>
@@ -107,7 +107,7 @@
     </div>
 
     <!-- Modal cảnh báo ảnh không phải y tế -->
-    <div class="modal fade" id="nonMedicalConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="nonMedicalConfirmModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header bg-warning text-dark">
@@ -311,7 +311,6 @@
           const taskInfo = {
             task_type: "Vision Q&A",
             task_id: data.task_id,
-            patient_id: patientId,
             disease: diseaseText,
             model: modelText,
             uploaded_at: new Date().toLocaleString()
@@ -321,7 +320,7 @@
           taskList.push(taskInfo);
 
           // Lưu lại vào localStorage
-          localStorage.setItem('taskList', JSON.stringify(taskList));
+          //localStorage.setItem('taskList', JSON.stringify(taskList));
     
           let result = null;
           while (true) {

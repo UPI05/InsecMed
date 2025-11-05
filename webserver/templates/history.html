@@ -52,16 +52,18 @@
       <div class="card p-4 mb-4">
         <h5>Chi tiết Thống kê</h5>
         <ul class="list-group list-group-flush">
-          <li class="list-group-item">Tổng số chuẩn đoán: {{ stats.total_diagnoses }}</li>
-          <li class="list-group-item">Chuẩn đoán Ung thư da: {{ stats.skin_cancer }}</li>
-          <li class="list-group-item">Chuẩn đoán Viêm phổi: {{ stats.pneumonia }}</li>
-          <li class="list-group-item">Chuẩn đoán Ung thư vú: {{ stats.breast_cancer }}</li>
+          <li class="list-group-item">Tổng số chẩn đoán: {{ stats.total_diagnoses }}</li>
+          <li class="list-group-item">Chẩn đoán Ung thư da: {{ stats.skin_cancer }}</li>
+          <li class="list-group-item">Chẩn đoán Viêm phổi: {{ stats.pneumonia }}</li>
+          <li class="list-group-item">Chẩn đoán Ung thư vú: {{ stats.breast_cancer }}</li>
+          <li class="list-group-item">Chẩn đoán U não: {{ stats.brain_tumor }}</li>
+          <li class="list-group-item">Chẩn đoán COVID-19: {{ stats.covid_19 }}</li>
           <li class="list-group-item">Tổng số tương tác Q&A: {{ stats.total_qa }}</li>
         </ul>
       </div>
 
       <div class="card p-4 mb-4">
-        <h5>Lịch sử Chuẩn đoán</h5>
+        <h5>Lịch sử Chẩn đoán</h5>
         <div class="table-responsive">
           <table class="table table-hover">
             <thead>
@@ -69,7 +71,7 @@
                 <th>Mã bệnh nhân</th>
                 <th>Mô hình</th>
                 <th>Ảnh</th>
-                <th>Chuẩn đoán</th>
+                <th>Chẩn đoán</th>
                 <th>Xác suất</th>
                 <th>Thời gian</th>
               </tr>
@@ -77,10 +79,12 @@
             <tbody>
               {% for diagnosis in diagnoses %}
               <tr>
-                <td>{{ diagnosis.patient_id }}</td>
+                <td>{{ diagnosis.patient_id if diagnosis.patient_id != 0 else 'N/A' }}</td>
                 <td>{{ diagnosis.model }}</td>
                 <td><img src="{{ url_for('static', filename='uploads/' + diagnosis.image_filename) }}" class="history-image"></td>
-                <td>{{ diagnosis.prediction }}</td>
+                <td><a href="/diagnosis_detail?id={{ diagnosis.id }}" class="text-decoration-none">
+                  {{ diagnosis.prediction }}
+                </a></td>
                 <td>{{ (diagnosis.probability * 100) | round(2) }}%</td>
                 <td>{{ diagnosis.timestamp }}</td>
               </tr>
@@ -107,7 +111,7 @@
             <tbody>
               {% for qa in qa_interactions %}
               <tr>
-                <td>{{ qa.patient_id }}</td>
+                <td>{{ qa.patient_id if qa.patient_id != 0 else 'N/A' }}</td>
                 <td>{{ qa.model }}</td>
                 <td><img src="{{ url_for('static', filename='uploads/' + qa.image_filename) }}" class="history-image"></td>
                 <td>{{ qa.question[:15] }}...</td>
@@ -131,7 +135,15 @@
       new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: ['Tổng Chuẩn đoán', 'Ung thư da', 'Viêm phổi', 'Ung thư vú', 'Tổng Q&A'],
+          labels: [
+            'Tổng Chuẩn đoán',
+            'Ung thư da',
+            'Viêm phổi',
+            'Ung thư vú',
+            'COVID-19',
+            'U não',
+            'Tổng Q&A'
+          ],
           datasets: [{
             label: 'Số lượng',
             data: [
@@ -139,6 +151,8 @@
               {{ stats.skin_cancer | default(0) }},
               {{ stats.pneumonia | default(0) }},
               {{ stats.breast_cancer | default(0) }},
+              {{ stats.covid_19 | default(0) }},
+              {{ stats.brain_tumor | default(0) }},
               {{ stats.total_qa | default(0) }}
             ],
             backgroundColor: [
@@ -146,7 +160,9 @@
               'rgba(0, 183, 235, 0.6)',
               'rgba(0, 82, 204, 0.6)',
               'rgba(0, 183, 235, 0.6)',
-              'rgba(0, 82, 204, 0.6)'
+              'rgba(0, 183, 235, 0.6)',
+              'rgba(0, 82, 204, 0.6)',
+              'rgba(0, 183, 235, 0.6)'
             ],
             borderColor: 'rgba(244, 208, 63, 1)',
             borderWidth: 2
@@ -156,13 +172,21 @@
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            y: { beginAtZero: true, title: { display: true, text: 'Số lượng' } },
-            x: { title: { display: true, text: 'Danh mục' } }
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Số lượng' }
+            },
+            x: {
+              title: { display: true, text: 'Danh mục' }
+            }
           },
-          plugins: { legend: { display: false } }
+          plugins: {
+            legend: { display: false }
+          }
         }
       });
     });
   </script>
+  
 </body>
 </html>

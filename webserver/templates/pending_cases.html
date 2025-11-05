@@ -101,43 +101,26 @@
           const data = await res.json();
 
           let statusText = '', badgeClass = '';
+          let diag_id = '';
           if (data.status === 'queued') { statusText = 'Đang chờ xử lý'; badgeClass='bg-warning text-dark'; }
-          else if (data.status === 'finished') { statusText = 'Hoàn thành'; badgeClass='bg-success'; }
+          else if (data.status === 'finished') { diag_id = data.result.diagnosis_id; statusText = 'Hoàn thành'; badgeClass='bg-success'; }
           else if (data.status === 'failed') { statusText = 'Thất bại'; badgeClass='bg-danger'; }
           else { statusText = data.status; badgeClass='bg-secondary'; }
-
-          let resultHTML = '';
-          if (data.status === 'finished' && data.result) {
-            if (taskTypeText == 'Diagnosis') {
-              const max = data.result.reduce((p,c) => p.score>c.score?p:c, data.result[0]);
-              resultHTML = `
-                <p class="mb-1"><strong>Dự đoán:</strong> ${max.label}</p>
-                <p class="mb-1"><strong>Xác suất:</strong> ${(max.score*100).toFixed(2)}%</p>
-              `;
-            } else {
-              resultHTML = `
-                <p class="mb-1"><strong>Phản hồi:</strong> ${data.result.answer.replace(/\n/g, '<br>')}</p>
-              `;
-            }
-          } else if (data.status === 'failed') {
-            resultHTML = `<p class="mb-1 text-danger"><strong>Lỗi:</strong> ${data.error}</p>`;
-          }
 
           const col = document.createElement('div');
           // full width trên tablet & mobile (col-12), 1/3 màn hình trên desktop (col-lg-4)
           col.className = 'col-12 col-lg-4';
           col.innerHTML = `
+          <a href="/diagnosis_detail?id=${diag_id}" class="text-decoration-none text-dark">
             <div class="card mb-3 shadow-sm">
               <div class="card-body">
-                <h5 class="card-title">${task.patient_id}</h5>
-                <p class="card-text mb-1"><strong>Loại task:</strong> ${taskTypeText}</p>
-                <p class="card-text mb-1"><strong>Bệnh:</strong> ${task.disease}</p>
-                <p class="card-text mb-1"><strong>Model:</strong> ${task.model}</p>
+                <h5 class="card-title">${taskTypeText}</h5>
+                <p class="card-text mb-1"><strong>Mô hình:</strong> ${task.model}</p>
                 <p class="card-text mb-1"><strong>Thời gian:</strong> ${task.uploaded_at}</p>
                 <p class="card-text mb-1"><strong>Trạng thái:</strong> <span class="badge ${badgeClass} badge-status">${statusText}</span></p>
-                ${resultHTML}
               </div>
             </div>
+          </a>
           `;
           container.appendChild(col);
 
@@ -148,10 +131,8 @@
           col.innerHTML = `
             <div class="card mb-3 shadow-sm">
               <div class="card-body">
-                <h5 class="card-title">${task.patient_id}</h5>
-                <p class="card-text mb-1"><strong>Loại task:</strong> ${taskTypeText}</p>
-                <p class="card-text mb-1"><strong>Bệnh:</strong> ${task.disease}</p>
-                <p class="card-text mb-1"><strong>Model:</strong> ${task.model}</p>
+                <h5 class="card-title">${taskTypeText}</h5>
+                <p class="card-text mb-1"><strong>Mô hình:</strong> ${task.model}</p>
                 <p class="card-text mb-1"><strong>Thời gian:</strong> ${task.uploaded_at}</p>
                 <p class="card-text text-danger">Lỗi khi lấy trạng thái</p>
               </div>

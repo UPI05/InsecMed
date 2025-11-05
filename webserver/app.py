@@ -85,6 +85,7 @@ def init_db():
                   image_filename TEXT,
                   prediction TEXT,
                   probability REAL,
+                  share_to INTEGER,
                   timestamp DATETIME,
                   FOREIGN KEY (user_id) REFERENCES users(id))''')
     c.execute('''CREATE TABLE IF NOT EXISTS qa_interactions
@@ -95,6 +96,7 @@ def init_db():
                   image_filename TEXT,
                   question TEXT,
                   answer TEXT,
+                  share_to INTEGER,
                   timestamp DATETIME,
                   FOREIGN KEY (user_id) REFERENCES users(id))''')
     c.execute('''
@@ -127,13 +129,18 @@ def call_diagnosis_from_ai_server(self, filename, patient_id, model_name, user_i
     resp = requests.post(f"{AI_SERVER_HOST}/diagnose", data=data, files=files)
     results = resp.json()
 
+    labels = ""
+    for i in range(len(model_name.split(','))):
+        labels += results['results'][i]['top_label'] + "/"
+
     # Lưu vào database
-    max_result = max(results, key=lambda x: x['score'])
     conn = get_db_conn()
-    conn.execute(
+    cur = conn.execute(
         "INSERT INTO diagnoses (user_id, patient_id, model, image_filename, prediction, probability, timestamp) VALUES (?,?,?,?,?,?,?)",
-        (user_id, patient_id, model_name, filename, max_result['label'], max_result['score'], datetime.now())
+        (user_id, patient_id, model_name, filename, labels, results['results'][0]['top_score'], datetime.now())
     )
+    diag_id = cur.lastrowid
+    results["diagnosis_id"] = diag_id
     conn.commit()
     conn.close()
 
@@ -148,10 +155,12 @@ def call_vision_qa_from_ai_server(self, filename, question, patient_id, model_na
     results = resp.json()
     # Lưu vào database
     conn = get_db_conn()
-    conn.execute(
+    cur = conn.execute(
         "INSERT INTO qa_interactions (user_id, patient_id, model, image_filename, question, answer, timestamp) VALUES (?,?,?,?,?,?,?)",
         (user_id, patient_id, model_name, filename, question, results['answer'], datetime.now())
     )
+    diag_id = cur.lastrowid
+    results["diagnosis_id"] = diag_id
     conn.commit()
     conn.close()
 
@@ -352,6 +361,40 @@ def profile():
     conn.close()
     return render_template('profile.html', isDoctor=isDoctor, user=user, show_patient_management=show_patient_management)
 
+
+@app.route('/shared-to-me')
+def shared_to_me():
+    if ('user_id' not in session) or ('user_role' not in session):
+        flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+    show_patient_management = False
+    isDoctor = False
+    if (session['user_role'] == 'doctor'):
+        show_patient_management = True
+        isDoctor = True
+
+    conn = get_db_conn()
+    c = conn.cursor()
+
+    # Diagnoses
+    c.execute("SELECT id, full_name FROM users")
+    users = {row["id"]: row["full_name"] for row in c.fetchall()}
+
+    c.execute("SELECT id, user_id, patient_id, model,image_filename,prediction,probability,timestamp FROM diagnoses WHERE share_to=? ORDER BY timestamp DESC", (session['user_id'],))
+    diagnoses = [dict(row) for row in c.fetchall()]
+
+    for d in diagnoses:
+        creator = d["user_id"]
+        d["user_id"] = users.get(creator, None)
+
+    # QA interactions
+    c.execute("SELECT id, user_id, patient_id,model,image_filename,question,answer,timestamp FROM qa_interactions WHERE share_to=? ORDER BY timestamp DESC", (session['user_id'],))
+    qa_interactions = [dict(row) for row in c.fetchall()]
+
+    conn.close()
+    
+    return render_template('shared_to_me.html', isDoctor=isDoctor, show_patient_management=show_patient_management, diagnoses=diagnoses[:20], qa_interactions=qa_interactions[:20])
+
 @app.route('/history')
 def history():
     if ('user_id' not in session) or ('user_role' not in session):
@@ -367,11 +410,11 @@ def history():
     c = conn.cursor()
 
     # Diagnoses
-    c.execute("SELECT patient_id, model,image_filename,prediction,probability,timestamp FROM diagnoses WHERE user_id=? ORDER BY timestamp DESC", (session['user_id'],))
+    c.execute("SELECT id, patient_id, model,image_filename,prediction,probability,timestamp FROM diagnoses WHERE user_id=? ORDER BY timestamp DESC", (session['user_id'],))
     diagnoses = [dict(row) for row in c.fetchall()]
 
     # QA interactions
-    c.execute("SELECT patient_id,model,image_filename,question,answer,timestamp FROM qa_interactions WHERE user_id=? ORDER BY timestamp DESC", (session['user_id'],))
+    c.execute("SELECT id, patient_id,model,image_filename,question,answer,timestamp FROM qa_interactions WHERE user_id=? ORDER BY timestamp DESC", (session['user_id'],))
     qa_interactions = [dict(row) for row in c.fetchall()]
 
     # Stats
@@ -387,6 +430,12 @@ def history():
     c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND model='breast_cancer_vit'", (session['user_id'],))
     breast_cancer = c.fetchone()[0]
 
+    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND model='covid19_vit'", (session['user_id'],))
+    covid_19 = c.fetchone()[0]
+
+    c.execute("SELECT COUNT(*) FROM diagnoses WHERE user_id=? AND (model='brain_tumor_vit' OR model='brain_tumor_resnet')", (session['user_id'],))
+    brain_tumor = c.fetchone()[0]
+
     c.execute("SELECT COUNT(*) FROM qa_interactions WHERE user_id=?", (session['user_id'],))
     total_qa = c.fetchone()[0]
 
@@ -394,7 +443,8 @@ def history():
     
     return render_template('history.html', isDoctor=isDoctor, show_patient_management=show_patient_management, diagnoses=diagnoses[:20], qa_interactions=qa_interactions[:20],
                            stats={"total_diagnoses":total_diagnoses,"skin_cancer":skin_cancer,
-                                  "pneumonia":pneumonia,"breast_cancer":breast_cancer,"total_qa":total_qa})
+                                  "pneumonia":pneumonia,"breast_cancer":breast_cancer,"covid_19":covid_19,
+                                  "brain_tumor":brain_tumor,"total_qa":total_qa})
 
 @app.route('/pending-cases')
 def pending_cases():
@@ -521,6 +571,99 @@ def delete_patient(id):
 
 
 # ---------------- Diagnosis ----------------
+@app.route("/diagnosis_detail")
+def diagnosis_detail():
+    diag_id = request.args.get("id")
+    if not diag_id:
+        return "Missing id", 400
+    
+    if ('user_id' not in session) or ('user_role' not in session):
+        flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+
+    conn = get_db_conn()
+    row = conn.execute("SELECT id, user_id, patient_id, model, image_filename, prediction, probability, timestamp, share_to FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
+    conn.close()
+
+    if not row:
+        return "Diagnosis not found", 404
+    
+    if row[1] != session['user_id'] and row[8] != session['user_id']:
+        return redirect(url_for('shared_to_me'))
+        #return "Permission denied", 403
+    
+    showUpdate = False
+    if row[1] == session['user_id']:
+        showUpdate = True
+
+    conn = get_db_conn()
+    creator = conn.execute("SELECT full_name from users WHERE id = ?", (row[1],)).fetchone()
+    conn.close()
+
+    if not creator:
+        creator = [""]
+
+    diagnosis = {
+        "id": row[0],
+        "creator": creator[0],
+        "patient_id": row[2],
+        "model": row[3],
+        "image_filename": row[4],
+        "prediction": row[5],
+        "probability": row[6],
+        "timestamp": row[7]
+    }
+
+    return render_template("diagnosis_detail.html", showUpdate=showUpdate, isDoctor=True, show_patient_management=True, diagnosis=diagnosis)
+
+@app.route("/update_patient_diagnosis", methods=["POST"])
+@limiter.limit("3 per minute", methods=["POST"]) 
+def update_patient_diagnosis():
+    if ('user_id' not in session) or ('user_role' not in session):
+        flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+    diag_id = request.form.get("id")
+    new_patient = request.form.get("patient_id")
+
+    conn = get_db_conn()
+    row = conn.execute("SELECT user_id FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
+    conn.close()
+
+    if row[0] != session['user_id']:
+        flash("⛔ You do not have permission to update this diagnosis!", "danger")
+        return redirect(f"/diagnosis_detail?id={diag_id}")
+
+    conn = get_db_conn()
+    conn.execute("UPDATE diagnoses SET patient_id = ? WHERE id = ?", (new_patient, diag_id))
+    conn.commit()
+    conn.close()
+    flash("Update complete.", "success")
+    return redirect(f"/diagnosis_detail?id={diag_id}")
+
+@app.route("/share_diagnosis", methods=["POST"])
+@limiter.limit("3 per minute", methods=["POST"]) 
+def share_diagnosis():
+    if ('user_id' not in session) or ('user_role' not in session):
+        flash("Vui lòng đăng nhập", "danger")
+        return redirect(url_for('index'))
+    diag_id = request.form.get("id")
+    share_to_user = request.form.get("user_id")   # user_id muốn chia sẻ
+
+    conn = get_db_conn()
+    row = conn.execute("SELECT user_id, share_to FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
+    conn.close()
+
+    if row[0] != session['user_id'] and row[1] != session['user_id']:
+        flash("⛔ You do not have permission to share this diagnosis!", "danger")
+        return redirect(f"/diagnosis_detail?id={diag_id}")
+    
+    conn = get_db_conn()
+    conn.execute("UPDATE diagnoses SET share_to = ? WHERE id = ?", (share_to_user, diag_id))
+    conn.commit()
+    conn.close()
+    flash("Share complete.", "success")
+    return redirect(f"/diagnosis_detail?id={diag_id}")
+
 @app.route('/diagnose', methods=['GET','POST'])
 @limiter.limit("3 per minute", methods=["POST"]) 
 def diagnose():
@@ -564,7 +707,7 @@ def diagnose():
 
     conn.close()
 
-    if not patient:
+    if not patient and str(patient_id) != "0":
         return jsonify({"error": "Mã bệnh nhân không tồn tại hoặc bạn không có quyền"}), 400
 
     filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
@@ -628,7 +771,7 @@ def vision_qa():
 
     conn.close()
 
-    if not patient:
+    if not patient and str(patient_id) != "0":
         return jsonify({"error": "Mã bệnh nhân không tồn tại hoặc bạn không có quyền"}), 400
 
     filename = f"vqa_{uuid.uuid4()}_{secure_filename(file.filename)}"
