@@ -1,4 +1,4 @@
-from flask import Flask, render_template, render_template_string, request, jsonify, redirect, url_for, flash, session
+from flask import g, Flask, render_template, render_template_string, request, jsonify, redirect, url_for, flash, session
 import sqlite3, os, secrets, requests
 from datetime import datetime
 from celery import Celery
@@ -85,7 +85,9 @@ def init_db():
                   image_filename TEXT,
                   prediction TEXT,
                   probability REAL,
-                  share_to INTEGER,
+                  share_to TEXT,
+                  accept_share INTEGER,
+                  sharer INTEGER,
                   timestamp DATETIME,
                   FOREIGN KEY (user_id) REFERENCES users(id))''')
     c.execute('''CREATE TABLE IF NOT EXISTS qa_interactions
@@ -96,7 +98,9 @@ def init_db():
                   image_filename TEXT,
                   question TEXT,
                   answer TEXT,
-                  share_to INTEGER,
+                  share_to TEXT,
+                  accept_share INTEGER,
+                  sharer INTEGER,
                   timestamp DATETIME,
                   FOREIGN KEY (user_id) REFERENCES users(id))''')
     c.execute('''
@@ -120,6 +124,50 @@ def get_db_conn():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     return conn
+
+@app.before_request
+def load_notifications():
+    # Không load nếu không login 
+    if request.endpoint in ('static',) or 'user_id' not in session:
+        return
+
+    conn = get_db_conn()
+
+    # Lấy users map (id -> full_name)
+    users = conn.execute("SELECT id, full_name FROM users").fetchall()
+    users_map = {row["id"]: row["full_name"] for row in users}
+
+    user_row = conn.execute("SELECT email FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+
+    if user_row:
+        user_email = user_row["email"]
+    else:
+        flash("Không tìm thấy người dùng với id này!", "danger")
+        return redirect(request.referrer)
+
+    # Lấy notifications
+    rows = conn.execute("""
+        SELECT id, user_id, timestamp, 0 AS type
+        FROM diagnoses
+        WHERE share_to=? AND (accept_share IS NULL OR accept_share = 0)
+
+        UNION ALL
+
+        SELECT id, user_id, timestamp, 1 AS type
+        FROM qa_interactions
+        WHERE share_to=? AND (accept_share IS NULL OR accept_share = 0)
+
+        ORDER BY timestamp DESC
+    """, (user_email, user_email)).fetchall()
+
+    conn.close()
+
+    notifications = [dict(row) for row in rows]
+    for n in notifications:
+        creator_id = n["user_id"]
+        n["user_id"] = users_map.get(creator_id)
+    g.notifications = notifications
+
 # -----------------Celery ----------------
 @celery.task(bind=True, queue='pipeline_a')
 def call_diagnosis_from_ai_server(self, filename, patient_id, model_name, user_id):
@@ -211,7 +259,7 @@ def terms():
 
 
 @app.route('/register', methods=['GET', 'POST'])
-@limiter.limit("2 per minute")
+@limiter.limit("4 per minute")
 def register():
     if request.method == 'POST':
         full_name = request.form.get('full_name')
@@ -359,7 +407,7 @@ def profile():
     c.execute("SELECT full_name,email,phone,profile_pic FROM users WHERE id=?", (session['user_id'],))
     user = c.fetchone()
     conn.close()
-    return render_template('profile.html', isDoctor=isDoctor, user=user, show_patient_management=show_patient_management)
+    return render_template('profile.html', notifications=g.notifications, isDoctor=isDoctor, user=user, show_patient_management=show_patient_management)
 
 
 @app.route('/shared-to-me')
@@ -376,24 +424,49 @@ def shared_to_me():
     conn = get_db_conn()
     c = conn.cursor()
 
+    user_row = c.execute("SELECT email FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+
+    if user_row:
+        user_email = user_row["email"]
+    else:
+        flash("Không tìm thấy người dùng với id này!", "danger")
+        return redirect(request.referrer)
+
     # Diagnoses
     c.execute("SELECT id, full_name FROM users")
     users = {row["id"]: row["full_name"] for row in c.fetchall()}
 
-    c.execute("SELECT id, user_id, patient_id, model,image_filename,prediction,probability,timestamp FROM diagnoses WHERE share_to=? ORDER BY timestamp DESC", (session['user_id'],))
-    diagnoses = [dict(row) for row in c.fetchall()]
+    model_map = {
+        "skin_cancer_vit": "Ung thư da",
+        "pneumonia_vit": "Viêm phổi",
+        "covid19_vit": "Covid-19",
+        "breast_cancer_vit": "Ung thư vú",
+        "brain_tumor_vit": "U não - A",
+        "brain_tumor_resnet": "U não - B"
+    }
 
+    c.execute("SELECT id, user_id, patient_id, model,image_filename,prediction,probability,timestamp,sharer FROM diagnoses WHERE share_to=? AND accept_share=1 ORDER BY timestamp DESC", (user_email,))
+    diagnoses = [dict(row) for row in c.fetchall()]
     for d in diagnoses:
         creator = d["user_id"]
+        sharer = d["sharer"]
         d["user_id"] = users.get(creator, None)
+        d["sharer"] = users.get(sharer, None)
+        d["model"] = ", ".join(model_map.get(m.strip(), m.strip()) for m in d["model"].split(","))
 
     # QA interactions
-    c.execute("SELECT id, user_id, patient_id,model,image_filename,question,answer,timestamp FROM qa_interactions WHERE share_to=? ORDER BY timestamp DESC", (session['user_id'],))
+    c.execute("SELECT id, user_id, patient_id,model,image_filename,question,answer,timestamp,sharer FROM qa_interactions WHERE share_to=? AND accept_share=1 ORDER BY timestamp DESC", (user_email,))
     qa_interactions = [dict(row) for row in c.fetchall()]
+    for d in qa_interactions:
+        creator = d["user_id"]
+        sharer = d["sharer"]
+        d["user_id"] = users.get(creator, None)
+        d["sharer"] = users.get(sharer, None)
+        d["model"] = ", ".join(model_map.get(m.strip(), m.strip()) for m in d["model"].split(","))
 
     conn.close()
-    
-    return render_template('shared_to_me.html', isDoctor=isDoctor, show_patient_management=show_patient_management, diagnoses=diagnoses[:20], qa_interactions=qa_interactions[:20])
+
+    return render_template('shared_to_me.html', notifications=g.notifications, isDoctor=isDoctor, show_patient_management=show_patient_management, diagnoses=diagnoses[:20], qa_interactions=qa_interactions[:20])
 
 @app.route('/history')
 def history():
@@ -441,7 +514,7 @@ def history():
 
     conn.close()
     
-    return render_template('history.html', isDoctor=isDoctor, show_patient_management=show_patient_management, diagnoses=diagnoses[:20], qa_interactions=qa_interactions[:20],
+    return render_template('history.html', notifications=g.notifications, isDoctor=isDoctor, show_patient_management=show_patient_management, diagnoses=diagnoses[:20], qa_interactions=qa_interactions[:20],
                            stats={"total_diagnoses":total_diagnoses,"skin_cancer":skin_cancer,
                                   "pneumonia":pneumonia,"breast_cancer":breast_cancer,"covid_19":covid_19,
                                   "brain_tumor":brain_tumor,"total_qa":total_qa})
@@ -458,7 +531,7 @@ def pending_cases():
         isDoctor = True
     else:
         return redirect(url_for('index'))
-    return render_template('pending_cases.html', isDoctor=isDoctor, api_host=WEB_SERVER_HOST, show_patient_management=show_patient_management)
+    return render_template('pending_cases.html', notifications=g.notifications, isDoctor=isDoctor, api_host=WEB_SERVER_HOST, show_patient_management=show_patient_management)
 
 # ---------------- Patient Management ----------------
 @app.route("/patient-management")
@@ -478,7 +551,7 @@ def patient_management():
         (user_id,)
     ).fetchall()
     conn.close()
-    return render_template("patient_management.html", isDoctor=True, show_patient_management=True, patients=patients)
+    return render_template("patient_management.html", notifications=g.notifications, isDoctor=True, show_patient_management=True, patients=patients)
 
 
 @app.route("/patients/add", methods=["POST"])
@@ -569,9 +642,34 @@ def delete_patient(id):
     flash("Xóa bệnh nhân thành công", "success")
     return redirect(url_for("patient_management"))
 
+@app.route("/respond_share", methods=["POST"])
+@limiter.limit("10 per minute", methods=["POST"]) 
+def respond_share():
+    if 'user_id' not in session:
+        return {"status": "unauthorized"}, 403
+
+    diag_id = request.form.get("id")
+    table = request.form.get("table")
+    decision = request.form.get("decision")  # 1 = accept, 0 = reject
+
+    if table == '1':
+        conn = get_db_conn()
+        conn.execute("UPDATE qa_interactions SET accept_share=? WHERE id=?", (decision, diag_id))
+        conn.commit()
+        conn.close()
+    elif table == '0':
+        conn = get_db_conn()
+        conn.execute("UPDATE diagnoses SET accept_share=? WHERE id=?", (decision, diag_id))
+        conn.commit()
+        conn.close()
+
+    return {"status": "success"}
+
+
 
 # ---------------- Diagnosis ----------------
 @app.route("/diagnosis_detail")
+@limiter.limit("10 per minute") 
 def diagnosis_detail():
     diag_id = request.args.get("id")
     if not diag_id:
@@ -582,13 +680,20 @@ def diagnosis_detail():
         return redirect(url_for('index'))
 
     conn = get_db_conn()
-    row = conn.execute("SELECT id, user_id, patient_id, model, image_filename, prediction, probability, timestamp, share_to FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
+    row = conn.execute("SELECT id, user_id, patient_id, model, image_filename, prediction, probability, timestamp, share_to, sharer FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
+    user_row = conn.execute("SELECT email FROM users WHERE id = ?", (session['user_id'],)).fetchone()
     conn.close()
 
     if not row:
         return "Diagnosis not found", 404
     
-    if row[1] != session['user_id'] and row[8] != session['user_id']:
+    if user_row:
+        user_email = user_row["email"]
+    else:
+        flash("Không tìm thấy người dùng với id này!", "danger")
+        return redirect(request.referrer)
+    
+    if row[1] != session['user_id'] and row[8] != user_email:
         return redirect(url_for('shared_to_me'))
         #return "Permission denied", 403
     
@@ -598,23 +703,44 @@ def diagnosis_detail():
 
     conn = get_db_conn()
     creator = conn.execute("SELECT full_name from users WHERE id = ?", (row[1],)).fetchone()
+    sharer = conn.execute("SELECT full_name from users WHERE id = ?", (row[9],)).fetchone()
+    patient = conn.execute("SELECT name from patients WHERE id = ?", (row[2],)).fetchone()
     conn.close()
 
     if not creator:
-        creator = [""]
+        creator = ["N/A"]
+    
+    if not sharer:
+        sharer = ["N/A"]
+
+    if not patient:
+        patient = ["N/A"]
+
+    model_map = {
+        "skin_cancer_vit": "Ung thư da",
+        "pneumonia_vit": "Viêm phổi",
+        "covid19_vit": "Covid-19",
+        "breast_cancer_vit": "Ung thư vú",
+        "brain_tumor_vit": "U não - A",
+        "brain_tumor_resnet": "U não - B"
+    }
+    model = ", ".join(model_map.get(m.strip(), m.strip()) for m in row[3].split(","))
 
     diagnosis = {
         "id": row[0],
         "creator": creator[0],
         "patient_id": row[2],
-        "model": row[3],
+        "model": model,
         "image_filename": row[4],
         "prediction": row[5],
         "probability": row[6],
-        "timestamp": row[7]
+        "timestamp": row[7],
+        "share_to": row[8],
+        "sharer": sharer[0],
+        "patient": patient[0]
     }
 
-    return render_template("diagnosis_detail.html", showUpdate=showUpdate, isDoctor=True, show_patient_management=True, diagnosis=diagnosis)
+    return render_template("diagnosis_detail.html", notifications=g.notifications, showUpdate=showUpdate, isDoctor=True, show_patient_management=True, diagnosis=diagnosis)
 
 @app.route("/update_patient_diagnosis", methods=["POST"])
 @limiter.limit("3 per minute", methods=["POST"]) 
@@ -647,18 +773,19 @@ def share_diagnosis():
         flash("Vui lòng đăng nhập", "danger")
         return redirect(url_for('index'))
     diag_id = request.form.get("id")
-    share_to_user = request.form.get("user_id")   # user_id muốn chia sẻ
+    share_to_user = request.form.get("user_id")
 
     conn = get_db_conn()
     row = conn.execute("SELECT user_id, share_to FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
+    user_email = conn.execute("SELECT email FROM users WHERE id = ?", (session['user_id'],)).fetchone()
     conn.close()
 
-    if row[0] != session['user_id'] and row[1] != session['user_id']:
+    if row[0] != session['user_id'] and row[1] != user_email[0]:
         flash("⛔ You do not have permission to share this diagnosis!", "danger")
         return redirect(f"/diagnosis_detail?id={diag_id}")
     
     conn = get_db_conn()
-    conn.execute("UPDATE diagnoses SET share_to = ? WHERE id = ?", (share_to_user, diag_id))
+    conn.execute("UPDATE diagnoses SET share_to = ?, sharer = ?, accept_share = 0 WHERE id = ?", (share_to_user, session['user_id'], diag_id))
     conn.commit()
     conn.close()
     flash("Share complete.", "success")
@@ -679,8 +806,8 @@ def diagnose():
     if request.method == 'GET':
         conn = get_db_conn()
         patients = conn.execute("SELECT id, name FROM patients WHERE creator_ID = ?", (session['user_id'],)).fetchall()
-        conn.close()
-        return render_template('diagnosis.html', patient_id=session['user_id'], isDoctor=isDoctor, patients=patients, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST, img_host=IMG_SERVER_HOST)
+
+        return render_template('diagnosis.html', notifications=g.notifications, patient_id=session['user_id'], isDoctor=isDoctor, patients=patients, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST, img_host=IMG_SERVER_HOST)
 
     # POST: lưu file và request vào DB
     file = request.files.get('file')
@@ -744,7 +871,7 @@ def vision_qa():
         conn = get_db_conn()
         patients = conn.execute("SELECT id, name FROM patients WHERE creator_ID = ?", (session['user_id'],)).fetchall()
         conn.close()
-        return render_template('vision_qa.html', isDoctor=isDoctor, patient_id=session['user_id'], patients=patients, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST, img_host=IMG_SERVER_HOST)
+        return render_template('vision_qa.html', notifications=g.notifications, isDoctor=isDoctor, patient_id=session['user_id'], patients=patients, show_patient_management=show_patient_management, api_host=WEB_SERVER_HOST, img_host=IMG_SERVER_HOST)
 
     file = request.files.get('file')
     question = request.form.get('question')

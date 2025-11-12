@@ -79,7 +79,9 @@
             ({{ (diagnosis.probability * 100) | round(2) }}%)
           </p>
           <p><strong>Timestamp:</strong> {{ diagnosis.timestamp }}</p>
-          <p><strong>Owner:</strong> {{ diagnosis.creator }}</p>
+          <p><strong>Creator:</strong> {{ diagnosis.creator }}</p>
+          <p><strong>Sharer:</strong> {{ diagnosis.sharer }}</p>
+          <p><strong>Patient:</strong> {{ diagnosis.patient }}</p>
         </div>
 
         <!-- Update Patient Form -->
@@ -101,8 +103,8 @@
           <h5 class="card-title">📤 Share Diagnosis</h5>
           <form action="/share_diagnosis" method="POST">
             <input type="hidden" name="id" value="{{ diagnosis.id }}">
-            <label class="form-label">Share to User ID:</label>
-            <input type="text" class="form-control" name="user_id" placeholder="Enter user ID">
+            <label class="form-label">Share to other User:</label>
+            <input type="text" class="form-control" name="user_id" required placeholder="Enter user email">
             <button class="btn btn-primary mt-3"><i class="fa-solid fa-share-from-square"></i> Share</button>
           </form>
         </div>

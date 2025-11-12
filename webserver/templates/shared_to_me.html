@@ -50,9 +50,8 @@
           <table class="table table-hover">
             <thead>
               <tr>
-                <th>Người tạo</th>
+                <th>Người chia sẻ</th>
                 <th>Mã bệnh nhân</th>
-                <th>Mô hình</th>
                 <th>Ảnh</th>
                 <th>Chẩn đoán</th>
                 <th>Xác suất</th>
@@ -62,9 +61,8 @@
             <tbody>
               {% for diagnosis in diagnoses %}
               <tr>
-                <td>{{ diagnosis.user_id }}</td>
+                <td>{{ diagnosis.sharer }}</td>
                 <td>{{ diagnosis.patient_id if diagnosis.patient_id != 0 else 'N/A' }}</td>
-                <td>{{ diagnosis.model }}</td>
                 <td><img src="{{ url_for('static', filename='uploads/' + diagnosis.image_filename) }}" class="history-image"></td>
                 <td><a href="/diagnosis_detail?id={{ diagnosis.id }}" class="text-decoration-none">
                   {{ diagnosis.prediction }}
@@ -84,9 +82,8 @@
           <table class="table table-hover">
             <thead>
               <tr>
-                <th>Người tạo</th>
+                <th>Người chia sẻ</th>
                 <th>Mã bệnh nhân</th>
-                <th>Mô hình</th>
                 <th>Ảnh</th>
                 <th>Câu hỏi</th>
                 <th>Câu trả lời</th>
@@ -98,7 +95,6 @@
               <tr>
                 <td></td>
                 <td>{{ qa.patient_id if qa.patient_id != 0 else 'N/A' }}</td>
-                <td>{{ qa.model }}</td>
                 <td><img src="{{ url_for('static', filename='uploads/' + qa.image_filename) }}" class="history-image"></td>
                 <td>{{ qa.question[:15] }}...</td>
                 <td>{{ qa.answer[:60] }}...</td>
