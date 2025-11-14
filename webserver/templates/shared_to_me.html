@@ -64,7 +64,7 @@
                 <td>{{ diagnosis.sharer }}</td>
                 <td>{{ diagnosis.patient_id if diagnosis.patient_id != 0 else 'N/A' }}</td>
                 <td><img src="{{ url_for('static', filename='uploads/' + diagnosis.image_filename) }}" class="history-image"></td>
-                <td><a href="/diagnosis_detail?id={{ diagnosis.id }}" class="text-decoration-none">
+                <td><a href="/diagnosis_detail?tag=diag&id={{ diagnosis.id }}" class="text-decoration-none">
                   {{ diagnosis.prediction }}
                 </a></td>
                 <td>{{ (diagnosis.probability * 100) | round(2) }}%</td>
@@ -96,8 +96,12 @@
                 <td></td>
                 <td>{{ qa.patient_id if qa.patient_id != 0 else 'N/A' }}</td>
                 <td><img src="{{ url_for('static', filename='uploads/' + qa.image_filename) }}" class="history-image"></td>
-                <td>{{ qa.question[:15] }}...</td>
-                <td>{{ qa.answer[:60] }}...</td>
+                <td><a href="/diagnosis_detail?tag=qa&id={{ qa.id }}" class="text-decoration-none">
+                  {{ qa.question[:15] }}...
+                </a></td>
+                <td><a href="/diagnosis_detail?tag=qa&id={{ qa.id }}" class="text-decoration-none">
+                  {{ qa.answer[:60] }}...
+                </a></td>
                 <td>{{ qa.timestamp }}</td>
               </tr>
               {% endfor %}

@@ -31,6 +31,10 @@
       margin-top: 50px;
     }
 
+    .badge {
+      white-space: normal !important;
+    }
+
     /* Clear button */
     #clearTasksBtn {
       min-width: 180px;
@@ -74,10 +78,19 @@
         <div class="card p-3 mb-4">
           <h5 class="card-title">🧪 Diagnosis Information</h5>
           <p><strong>Model:</strong> {{ diagnosis.model }}</p>
-          <p><strong>Prediction:</strong>
-            <span class="badge bg-primary">{{ diagnosis.prediction }}</span>
-            ({{ (diagnosis.probability * 100) | round(2) }}%)
-          </p>
+          {% if tag == "diag" %}
+            <p><strong>Prediction:</strong>
+                <span class="badge bg-primary">{{ diagnosis.prediction }}</span>
+                ({{ (diagnosis.probability * 100) | round(2) }}%)
+            </p>
+          {% else %}
+            <p><strong>Question:</strong>
+                <span class="badge bg-info">{{ diagnosis.question }}</span>
+            </p>
+            <p><strong>Answer:</strong>
+                <span class="badge bg-success">{{ diagnosis.answer }}</span>
+            </p>
+          {% endif %}
           <p><strong>Timestamp:</strong> {{ diagnosis.timestamp }}</p>
           <p><strong>Creator:</strong> {{ diagnosis.creator }}</p>
           <p><strong>Sharer:</strong> {{ diagnosis.sharer }}</p>
@@ -91,6 +104,7 @@
           <h5 class="card-title">🧑‍⚕️ Update Patient</h5>
           <form action="/update_patient_diagnosis" method="POST">
             <input type="hidden" name="id" value="{{ diagnosis.id }}">
+            <input type="hidden" name="tag" value="{{ tag }}">
             <label class="form-label">Patient ID:</label>
             <input type="text" class="form-control" name="patient_id" value="{{ diagnosis.patient_id }}">
             <button class="btn btn-success mt-3"><i class="fa-solid fa-floppy-disk"></i> Save</button>
@@ -103,6 +117,7 @@
           <h5 class="card-title">📤 Share Diagnosis</h5>
           <form action="/share_diagnosis" method="POST">
             <input type="hidden" name="id" value="{{ diagnosis.id }}">
+            <input type="hidden" name="tag" value="{{ tag }}">
             <label class="form-label">Share to other User:</label>
             <input type="text" class="form-control" name="user_id" required placeholder="Enter user email">
             <button class="btn btn-primary mt-3"><i class="fa-solid fa-share-from-square"></i> Share</button>

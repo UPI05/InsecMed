@@ -167,7 +167,7 @@
       };
       diseaseSelect.addEventListener("change", function() {
         const selectedDisease = this.value;
-        modelSelect.innerHTML = '<option value="">-- Chọn model --</option>';
+        modelSelect.innerHTML = '<option value="med-gemma-4b">-- Chọn model --</option>';
         modelSelect.disabled = !selectedDisease;
         if (selectedDisease && diseaseModels[selectedDisease]) {
           diseaseModels[selectedDisease].forEach(m => {
@@ -307,12 +307,14 @@
             modelText = modelSelect.options[modelSelect.selectedIndex]?.text || '';
           }
 
+          const option = document.querySelector('#modelSelect option');
           // Tạo object lưu task info
           const taskInfo = {
             task_type: "Vision Q&A",
             task_id: data.task_id,
+            tag: "qa",
             disease: diseaseText,
-            model: modelText,
+            model: option.value,
             uploaded_at: new Date().toLocaleString()
           };
 
@@ -320,7 +322,7 @@
           taskList.push(taskInfo);
 
           // Lưu lại vào localStorage
-          //localStorage.setItem('taskList', JSON.stringify(taskList));
+          localStorage.setItem('taskList', JSON.stringify(taskList));
     
           let result = null;
           while (true) {

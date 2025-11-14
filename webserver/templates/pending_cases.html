@@ -111,7 +111,7 @@
           // full width trên tablet & mobile (col-12), 1/3 màn hình trên desktop (col-lg-4)
           col.className = 'col-12 col-lg-4';
           col.innerHTML = `
-          <a href="/diagnosis_detail?id=${diag_id}" class="text-decoration-none text-dark">
+          <a href="/diagnosis_detail?id=${diag_id}&tag=${task.tag}" class="text-decoration-none text-dark">
             <div class="card mb-3 shadow-sm">
               <div class="card-body">
                 <h5 class="card-title">${taskTypeText}</h5>

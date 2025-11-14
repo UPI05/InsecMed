@@ -672,75 +672,135 @@ def respond_share():
 @limiter.limit("10 per minute") 
 def diagnosis_detail():
     diag_id = request.args.get("id")
-    if not diag_id:
-        return "Missing id", 400
+    tag = request.args.get("tag")
+    if not diag_id or not tag:
+        return "Missing id or tag", 400
     
     if ('user_id' not in session) or ('user_role' not in session):
         flash("Vui lòng đăng nhập", "danger")
         return redirect(url_for('index'))
-
-    conn = get_db_conn()
-    row = conn.execute("SELECT id, user_id, patient_id, model, image_filename, prediction, probability, timestamp, share_to, sharer FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
-    user_row = conn.execute("SELECT email FROM users WHERE id = ?", (session['user_id'],)).fetchone()
-    conn.close()
-
-    if not row:
-        return "Diagnosis not found", 404
     
-    if user_row:
-        user_email = user_row["email"]
+    if tag == 'diag':
+
+        conn = get_db_conn()
+        row = conn.execute("SELECT id, user_id, patient_id, model, image_filename, prediction, probability, timestamp, share_to, sharer FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
+        user_row = conn.execute("SELECT email FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+        conn.close()
+
+        if not row:
+            return "Diagnosis not found", 404
+        
+        if user_row:
+            user_email = user_row["email"]
+        else:
+            flash("Không tìm thấy người dùng với id này!", "danger")
+            return redirect(request.referrer)
+        
+        if row[1] != session['user_id'] and row[8] != user_email:
+            return redirect(url_for('shared_to_me'))
+            #return "Permission denied", 403
+        
+        showUpdate = False
+        if row[1] == session['user_id']:
+            showUpdate = True
+
+        conn = get_db_conn()
+        creator = conn.execute("SELECT full_name from users WHERE id = ?", (row[1],)).fetchone()
+        sharer = conn.execute("SELECT full_name from users WHERE id = ?", (row[9],)).fetchone()
+        patient = conn.execute("SELECT name from patients WHERE id = ?", (row[2],)).fetchone()
+        conn.close()
+
+        if not creator:
+            creator = ["N/A"]
+        
+        if not sharer:
+            sharer = ["N/A"]
+
+        if not patient:
+            patient = ["N/A"]
+
+        model_map = {
+            "skin_cancer_vit": "Ung thư da",
+            "pneumonia_vit": "Viêm phổi",
+            "covid19_vit": "Covid-19",
+            "breast_cancer_vit": "Ung thư vú",
+            "brain_tumor_vit": "U não - A",
+            "brain_tumor_resnet": "U não - B"
+        }
+        model = ", ".join(model_map.get(m.strip(), m.strip()) for m in row[3].split(","))
+
+        diagnosis = {
+            "id": row[0],
+            "creator": creator[0],
+            "patient_id": row[2],
+            "model": model,
+            "image_filename": row[4],
+            "prediction": row[5],
+            "probability": row[6],
+            "timestamp": row[7],
+            "share_to": row[8],
+            "sharer": sharer[0],
+            "patient": patient[0]
+        }
+
     else:
-        flash("Không tìm thấy người dùng với id này!", "danger")
-        return redirect(request.referrer)
-    
-    if row[1] != session['user_id'] and row[8] != user_email:
-        return redirect(url_for('shared_to_me'))
-        #return "Permission denied", 403
-    
-    showUpdate = False
-    if row[1] == session['user_id']:
-        showUpdate = True
+        conn = get_db_conn()
+        row = conn.execute("SELECT id, user_id, patient_id, model, image_filename, question, answer, timestamp, share_to, sharer FROM qa_interactions WHERE id = ?", (diag_id,)).fetchone()
+        user_row = conn.execute("SELECT email FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+        conn.close()
 
-    conn = get_db_conn()
-    creator = conn.execute("SELECT full_name from users WHERE id = ?", (row[1],)).fetchone()
-    sharer = conn.execute("SELECT full_name from users WHERE id = ?", (row[9],)).fetchone()
-    patient = conn.execute("SELECT name from patients WHERE id = ?", (row[2],)).fetchone()
-    conn.close()
+        if not row:
+            return "Diagnosis not found", 404
+        
+        if user_row:
+            user_email = user_row["email"]
+        else:
+            flash("Không tìm thấy người dùng với id này!", "danger")
+            return redirect(request.referrer)
+        
+        if row[1] != session['user_id'] and row[8] != user_email:
+            return redirect(url_for('shared_to_me'))
+            #return "Permission denied", 403
+        
+        showUpdate = False
+        if row[1] == session['user_id']:
+            showUpdate = True
 
-    if not creator:
-        creator = ["N/A"]
-    
-    if not sharer:
-        sharer = ["N/A"]
+        conn = get_db_conn()
+        creator = conn.execute("SELECT full_name from users WHERE id = ?", (row[1],)).fetchone()
+        sharer = conn.execute("SELECT full_name from users WHERE id = ?", (row[9],)).fetchone()
+        patient = conn.execute("SELECT name from patients WHERE id = ?", (row[2],)).fetchone()
+        conn.close()
 
-    if not patient:
-        patient = ["N/A"]
+        if not creator:
+            creator = ["N/A"]
+        
+        if not sharer:
+            sharer = ["N/A"]
 
-    model_map = {
-        "skin_cancer_vit": "Ung thư da",
-        "pneumonia_vit": "Viêm phổi",
-        "covid19_vit": "Covid-19",
-        "breast_cancer_vit": "Ung thư vú",
-        "brain_tumor_vit": "U não - A",
-        "brain_tumor_resnet": "U não - B"
-    }
-    model = ", ".join(model_map.get(m.strip(), m.strip()) for m in row[3].split(","))
+        if not patient:
+            patient = ["N/A"]
 
-    diagnosis = {
-        "id": row[0],
-        "creator": creator[0],
-        "patient_id": row[2],
-        "model": model,
-        "image_filename": row[4],
-        "prediction": row[5],
-        "probability": row[6],
-        "timestamp": row[7],
-        "share_to": row[8],
-        "sharer": sharer[0],
-        "patient": patient[0]
-    }
+        model_map = {
+            "general": "Chẩn đoán tổng quát"
+        }
+        model = ", ".join(model_map.get(m.strip(), m.strip()) for m in row[3].split(","))
 
-    return render_template("diagnosis_detail.html", notifications=g.notifications, showUpdate=showUpdate, isDoctor=True, show_patient_management=True, diagnosis=diagnosis)
+        diagnosis = {
+            "id": row[0],
+            "creator": creator[0],
+            "patient_id": row[2],
+            "model": model,
+            "image_filename": row[4],
+            "question": row[5],
+            "answer": row[6],
+            "timestamp": row[7],
+            "share_to": row[8],
+            "sharer": sharer[0],
+            "patient": patient[0]
+        }
+
+    return render_template("diagnosis_detail.html", tag=tag, notifications=g.notifications, showUpdate=showUpdate, isDoctor=True, show_patient_management=True, diagnosis=diagnosis)
 
 @app.route("/update_patient_diagnosis", methods=["POST"])
 @limiter.limit("3 per minute", methods=["POST"]) 
@@ -749,10 +809,14 @@ def update_patient_diagnosis():
         flash("Vui lòng đăng nhập", "danger")
         return redirect(url_for('index'))
     diag_id = request.form.get("id")
+    tag = request.form.get("tag")
     new_patient = request.form.get("patient_id")
 
+    # Chọn bảng dựa vào tag
+    table = "diagnoses" if tag == "diag" else "qa_interactions"
+
     conn = get_db_conn()
-    row = conn.execute("SELECT user_id FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
+    row = conn.execute(f"SELECT user_id FROM {table} WHERE id = ?", (diag_id,)).fetchone()
     conn.close()
 
     if row[0] != session['user_id']:
@@ -760,11 +824,11 @@ def update_patient_diagnosis():
         return redirect(f"/diagnosis_detail?id={diag_id}")
 
     conn = get_db_conn()
-    conn.execute("UPDATE diagnoses SET patient_id = ? WHERE id = ?", (new_patient, diag_id))
+    conn.execute(f"UPDATE {table} SET patient_id = ? WHERE id = ?", (new_patient, diag_id))
     conn.commit()
     conn.close()
     flash("Update complete.", "success")
-    return redirect(f"/diagnosis_detail?id={diag_id}")
+    return redirect(f"/diagnosis_detail?tag={tag}&id={diag_id}")
 
 @app.route("/share_diagnosis", methods=["POST"])
 @limiter.limit("3 per minute", methods=["POST"]) 
@@ -773,10 +837,14 @@ def share_diagnosis():
         flash("Vui lòng đăng nhập", "danger")
         return redirect(url_for('index'))
     diag_id = request.form.get("id")
+    tag = request.form.get("tag")
     share_to_user = request.form.get("user_id")
 
+    # Chọn bảng dựa vào tag
+    table = "diagnoses" if tag == "diag" else "qa_interactions"
+
     conn = get_db_conn()
-    row = conn.execute("SELECT user_id, share_to FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
+    row = conn.execute(f"SELECT user_id, share_to FROM {table} WHERE id = ?", (diag_id,)).fetchone()
     user_email = conn.execute("SELECT email FROM users WHERE id = ?", (session['user_id'],)).fetchone()
     conn.close()
 
@@ -785,11 +853,11 @@ def share_diagnosis():
         return redirect(f"/diagnosis_detail?id={diag_id}")
     
     conn = get_db_conn()
-    conn.execute("UPDATE diagnoses SET share_to = ?, sharer = ?, accept_share = 0 WHERE id = ?", (share_to_user, session['user_id'], diag_id))
+    conn.execute(f"UPDATE {table} SET share_to = ?, sharer = ?, accept_share = 0 WHERE id = ?", (share_to_user, session['user_id'], diag_id))
     conn.commit()
     conn.close()
     flash("Share complete.", "success")
-    return redirect(f"/diagnosis_detail?id={diag_id}")
+    return redirect(f"/diagnosis_detail?tag={tag}&id={diag_id}")
 
 @app.route('/diagnose', methods=['GET','POST'])
 @limiter.limit("3 per minute", methods=["POST"]) 
