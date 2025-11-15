@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>InsecMed - Terms and Conditions</title>
-  <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='logo.png') }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500;700&display=swap" rel="stylesheet">
   <style>
@@ -80,7 +80,7 @@
         <p data-key="terms.section4_content">InsecMed không chịu trách nhiệm cho bất kỳ thiệt hại nào phát sinh từ việc sử dụng dịch vụ.</p>
       </div>
       <div class="text-center mt-4">
-        <a href="{{ url_for('register') }}" class="btn btn-primary" data-key="terms.back">Quay lại</a>
+        <a href="{{ url_for('register_get') }}" class="btn btn-primary" data-key="terms.back">Quay lại</a>
       </div>
     </div>
   </div>

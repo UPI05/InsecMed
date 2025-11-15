@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <title>InsecMed - Shared to Me</title>
-  <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='logo.png') }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='sidebar.css') }}">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
@@ -28,16 +28,14 @@
 
   <div class="content">
     <div class="container py-5">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-              {{ message }}
-              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
+      {% if flashes %}
+        {% for f in flashes %}
+          <div class="alert alert-{{ f.cat }} alert-dismissible fade show" role="alert">
+            {{ f.msg }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
 
       <div class="text-center mb-4">
         <h1 class="fw-bold text-primary">Shared to me</h1>
@@ -63,7 +61,7 @@
               <tr>
                 <td>{{ diagnosis.sharer }}</td>
                 <td>{{ diagnosis.patient_id if diagnosis.patient_id != 0 else 'N/A' }}</td>
-                <td><img src="{{ url_for('static', filename='uploads/' + diagnosis.image_filename) }}" class="history-image"></td>
+                <td><img src="{{ url_for('static', path='uploads/' + diagnosis.image_filename) }}" class="history-image"></td>
                 <td><a href="/diagnosis_detail?tag=diag&id={{ diagnosis.id }}" class="text-decoration-none">
                   {{ diagnosis.prediction }}
                 </a></td>
@@ -95,7 +93,7 @@
               <tr>
                 <td></td>
                 <td>{{ qa.patient_id if qa.patient_id != 0 else 'N/A' }}</td>
-                <td><img src="{{ url_for('static', filename='uploads/' + qa.image_filename) }}" class="history-image"></td>
+                <td><img src="{{ url_for('static', path='uploads/' + qa.image_filename) }}" class="history-image"></td>
                 <td><a href="/diagnosis_detail?tag=qa&id={{ qa.id }}" class="text-decoration-none">
                   {{ qa.question[:15] }}...
                 </a></td>
@@ -113,7 +111,7 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+  <script src="{{ url_for('static', path='sidebar.js') }}"></script>
   
 </body>
 </html>

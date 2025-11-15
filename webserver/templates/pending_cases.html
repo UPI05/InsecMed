@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <title>InsecMed - Pending Cases</title>
-  <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='logo.png') }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='sidebar.css') }}">
   <style>
     body { background: #f5f7fa; }
 
@@ -62,19 +62,34 @@
       </button>
     </div>
 
+    {% if flashes %}
+      {% for f in flashes %}
+        <div class="alert alert-{{ f.cat }} alert-dismissible fade show" role="alert">
+          {{ f.msg }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
     <!-- row có g-4 để card cách nhau đẹp -->
     <div id="casesContainer" class="row g-4"></div>
     <div id="noCases" class="no-cases" style="display:none;">Không có task nào đang chờ</div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+  <script src="{{ url_for('static', path='sidebar.js') }}"></script>
 
   <script>
     // Xóa Pending Cases
     document.getElementById('clearTasksBtn').addEventListener('click', () => {
       if (confirm('Bạn có chắc chắn muốn xóa tất cả Pending Cases không?')) {
-        localStorage.removeItem('taskList');
+        let taskList = JSON.parse(localStorage.getItem('taskList')) || [];
+
+        // Giữ lại những task KHÔNG thuộc user này
+        const filtered = taskList.filter(task => task.user != "{{user_id}}");
+
+        localStorage.setItem('taskList', JSON.stringify(filtered));
+
         loadPendingCases();
       }
     });
@@ -94,6 +109,9 @@
       }
 
       for (let task of taskList) {
+        if (task.user != "{{user_id}}") {
+          continue;
+        }
         let taskTypeText = task['task_type'];
 
         try {

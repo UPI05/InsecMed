@@ -7,11 +7,11 @@ CREATE TABLE diagnoses
                   image_filename TEXT,
                   prediction TEXT,
                   probability REAL,
-                  share_to INTEGER,
+                  share_to TEXT,
                   accept_share INTEGER,
+                  sharer INTEGER,
                   timestamp DATETIME,
                   FOREIGN KEY (user_id) REFERENCES users(id));
-INSERT INTO "diagnoses" VALUES(1,1,0,'skin_cancer_vit,pneumonia_vit,breast_cancer_vit,covid19_vit,brain_tumor_vit,brain_tumor_resnet','efb43dd8-0ad2-48a0-b9ae-06d53264803b_1000010436.jpg.png','U ác tính/Viêm phổi/Không bị ung thư vú/Hình ảnh CT có dấu hiệu COVID-19/Bị u não/U màng não/',0.3627,1,0,'2025-11-11 20:31:22.403498');
 CREATE TABLE patients (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -30,8 +30,9 @@ CREATE TABLE qa_interactions
                   image_filename TEXT,
                   question TEXT,
                   answer TEXT,
-                  share_to INTEGER,
+                  share_to TEXT,
                   accept_share INTEGER,
+                  sharer INTEGER,
                   timestamp DATETIME,
                   FOREIGN KEY (user_id) REFERENCES users(id));
 CREATE TABLE users
@@ -42,9 +43,7 @@ CREATE TABLE users
                   profile_pic TEXT,
                   role TEXT,
                   password_hash TEXT NOT NULL);
-INSERT INTO "users" VALUES(1,'Nguyen Van A','nva@gmail.com','0378241922',NULL,'doctor','$2b$12$umrsjXzy03RKJLetaqHRde83gg27J09ckQYqHEKlsYxvirFMYWFcu');
-INSERT INTO "users" VALUES(2,'Nguyen Van B','nvb@gmail.com','0378241922',NULL,'doctor','$2b$12$u/3WiMtIEmJhpzmxjuqcguCWEMhbiEfv1lJlgjCbHPHAmLcqMfgMC');
+INSERT INTO "users" VALUES(1,'Nguyen Van A','nva@gmail.com','0378241922',NULL,'doctor','$2b$12$DhysnXXn16Pfc1FdZnEWEe9IBJ2dp.EadG7MYap3C40zU6Kq3TPC6');
 DELETE FROM "sqlite_sequence";
-INSERT INTO "sqlite_sequence" VALUES('users',2);
-INSERT INTO "sqlite_sequence" VALUES('diagnoses',1);
+INSERT INTO "sqlite_sequence" VALUES('users',1);
 COMMIT;
