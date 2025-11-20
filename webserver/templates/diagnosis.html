@@ -23,13 +23,13 @@
     #imagePreview:hover { border-color: #f4d03f; }
     #chartTab { padding: 15px; min-height: 300px; }
     canvas#predictionChart { max-width: 100%; max-height: 400px; }
-    .modal-content { border-radius: 15px; border: none; box-shadow: 0px 5px 20px rgba(0,0,0,0.15); }
+    /* .modal-content { border-radius: 15px; border: none; box-shadow: 0px 5px 20px rgba(0,0,0,0.15); }
     .modal-header { background: linear-gradient(90deg, #0052cc, #00b7eb); color: #ffffff; border-top-left-radius: 15px; border-top-right-radius: 15px; border-bottom: none; }
     .modal-title { font-weight: bold; }
     .modal-body { padding: 20px; font-size: 1.1rem; text-align: center; }
     .modal-footer { border-top: none; justify-content: center; }
     .btn-primary { background: #2c3e50; border-color: #2c3e50; }
-    .btn-primary:hover { background: #003d99; border-color: #003d99; }
+    .btn-primary:hover { background: #003d99; border-color: #003d99; } */
   </style>
 </head>
 <body class="sidebar-collapsed" data-page="diagnosis">
@@ -165,6 +165,24 @@
     </div>
   </div>
 
+  <div class="modal fade" id="continueConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">Xác nhận hành động</h5>
+        </div>
+        <div class="modal-body">
+          Hệ thống phát hiện <b><span class="detectedDisease"></span></b>.<br>
+          Bạn muốn tiếp tục chẩn đoán cho <span class="detectedDisease"></span> hay hiển thị tất cả?
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelContinueBtn">Hiển thị tất cả mô hình</button>
+          <button type="button" class="btn btn-primary" id="confirmContinueBtn">Tiếp tục</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content" style="text-align:center; padding:2rem;">
@@ -179,7 +197,7 @@
   <div class="modal fade" id="diagnosisAlert" tabindex="-1" aria-labelledby="diagnosisAlertLabel">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
-        <div class="modal-header">
+        <div class="modal-header bg-success text-white">
           <h5 class="modal-title" id="diagnosisAlertLabel">Kết quả Chẩn đoán</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
@@ -232,6 +250,7 @@
     
     const uploadLoadingModal = new bootstrap.Modal(document.getElementById("uploadLoadingModal"));
     const nonMedicalModal = new bootstrap.Modal(document.getElementById("nonMedicalConfirmModal"));
+    const continueModal = new bootstrap.Modal(document.getElementById("continueConfirmModal"));
     let userConfirmedProceed = false;
     
     // ---- Khi chọn loại bệnh ----
@@ -368,6 +387,10 @@
     
           document.getElementById("confirmProceedBtn").onclick = () => {
             nonMedicalModal.hide();
+
+            const option = document.querySelector('#modelSelect option');
+            option.value = "skin_cancer_vit,pneumonia_vit,breast_cancer_vit,covid19_vit,brain_tumor_vit,brain_tumor_resnet";
+
             userConfirmedProceed = true;
             convertedImageFile = pngFile;
             submitBtn.disabled = false;
@@ -377,11 +400,22 @@
           return;
         }
 
+        // Là ảnh y tế
+        convertedImageFile = pngFile;
+        submitBtn.disabled = false;
+
         const classToModelMap = {
           class_2: ["pneumonia_vit", "covid19_vit"],
           class_3: "breast_cancer_vit",
           class_4: "skin_cancer_vit",
           class_5: ["brain_tumor_vit", "brain_tumor_resnet"]
+        };
+
+        const classToNameMap = {
+          class_2: "Ảnh phổi",
+          class_3: "Ảnh vếu",
+          class_4: "Ảnh da",
+          class_5: "Ảnh não"
         };
 
         // Lấy top 1 labels (bỏ class_1)
@@ -393,8 +427,12 @@
 
         // Map sang model
         let mappedModels = [];
+        let diseaseParts = [];
+
         topkLabels.forEach(label => {
           const model = classToModelMap[label];
+          const name = classToNameMap[label];
+          if (name) diseaseParts.push(name);
           if (Array.isArray(model)) {
             mappedModels.push(...model);
           } else if (model) {
@@ -405,13 +443,32 @@
         // Loại bỏ trùng lặp
         mappedModels = [...new Set(mappedModels)];
 
-        // Cập nhật value của option #modelSelect
-        const option = document.querySelector('#modelSelect option');
-        option.value = mappedModels.join(",");
+        const disease = diseaseParts.join(", ");
 
-        // Là ảnh y tế
-        convertedImageFile = pngFile;
-        submitBtn.disabled = false;
+        document.getElementsByClassName("detectedDisease")[0].textContent = disease;
+
+        document.getElementsByClassName("detectedDisease")[1].textContent = disease;
+
+        continueModal.show();
+    
+        document.getElementById("cancelContinueBtn").onclick = () => {
+          continueModal.hide();
+
+          const option = document.querySelector('#modelSelect option');
+          option.value = "skin_cancer_vit,pneumonia_vit,breast_cancer_vit,covid19_vit,brain_tumor_vit,brain_tumor_resnet";
+
+          document.getElementById("diagnosisForm").requestSubmit();
+        };
+  
+        document.getElementById("confirmContinueBtn").onclick = () => {
+          continueModal.hide();
+          // Cập nhật value của option #modelSelect
+          const option = document.querySelector('#modelSelect option');
+          option.value = mappedModels.join(",");
+
+          document.getElementById("diagnosisForm").requestSubmit();
+        };
+
     
       } catch (err) {
         uploadLoadingModal.hide();
