@@ -16,8 +16,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from celery import Celery
 import requests
+import logging
 
 # --- CONFIG ---
+
+logger = logging.getLogger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = "inseclab"
 DB_FILE = "insecmed.db"
@@ -212,10 +215,9 @@ def call_diagnosis_from_ai_server(self, filename, patient_id, model_name, user_i
 
         files = {
             "model_kind": (None, explain_model_name),
-            "prediction": (None, "Value"),
+            "prediction": (None, results["results"][idx]["top_label_origin"]),
             "image": (filename, input_file, "image/png")
         }
-
         explain_filenames += "explain_"+str(idx)+"_"+filename + ","
 
         response = requests.post(EXPLAIN_SERVER_HOST, files=files)

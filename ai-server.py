@@ -141,6 +141,7 @@ def diagnose():
         for r in results:
             new_label = label_map.get(r["label"], r["label"])
             filtered_results.append({
+                "originLabel": r["label"],
                 "label": new_label,
                 "score": round(r["score"], 4)
             })
@@ -149,6 +150,7 @@ def diagnose():
         final_results.append({
             "model": new_model_name,
             "top_label": best["label"],
+            "top_label_origin": best["originLabel"],
             "top_score": best["score"],
             "details": filtered_results
         })
