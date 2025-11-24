@@ -5,6 +5,7 @@ CREATE TABLE diagnoses
                   patient_id INTEGER,
                   model TEXT,
                   image_filename TEXT,
+                  explain_image_filename TEXT,
                   prediction TEXT,
                   probability REAL,
                   share_to TEXT,
@@ -43,7 +44,5 @@ CREATE TABLE users
                   profile_pic TEXT,
                   role TEXT,
                   password_hash TEXT NOT NULL);
-INSERT INTO "users" VALUES(1,'Nguyen Van A','nva@gmail.com','0378241922',NULL,'doctor','$2b$12$DhysnXXn16Pfc1FdZnEWEe9IBJ2dp.EadG7MYap3C40zU6Kq3TPC6');
 DELETE FROM "sqlite_sequence";
-INSERT INTO "sqlite_sequence" VALUES('users',1);
 COMMIT;

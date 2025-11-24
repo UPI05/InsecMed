@@ -53,73 +53,85 @@
       </div>
 
       <div class="card p-4">
-        <form id="diagnosisForm">
-          {% if isDoctor %}
-          <!-- Mã bệnh nhân -->
-          <div class="mb-3" hidden>
-            <label class="form-label fw-bold">Mã bệnh nhân:</label>
-            <select class="form-select" name="patient_id" id="idSelect">
-              <option value="0">-- Chọn bệnh nhân --</option>
-              {% for patient in patients %}
-                <option value="{{ patient[0] }}">
-                  {{ patient[0] }} - {{ patient[1] }}
-                </option>
-              {% endfor %}
-            </select>
+        <div class="d-flex justify-content-end mb-2">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="autoToggle" checked>
+            <label class="form-check-label" for="autoToggle">Chẩn đoán tự động</label>
           </div>
-          {% else %}
-          <input type="hidden" name="patient_id" value="BN_{{ patient_id }}">
-          {% endif %}
+        </div>
+        
+        <div id="diagFormDiv">
+          <form id="diagnosisForm">
 
-          <!-- Chọn loại bệnh -->
-          <div class="mb-3" hidden>
-            <label class="form-label fw-bold">Chọn loại bệnh:</label>
-            <select class="form-select" id="diseaseSelect" disabled>
-              <option value="">-- Chọn loại bệnh --</option>
-              <option value="skin_cancer">Ung thư da</option>
-              <option value="pneumonia">Viêm phổi</option>
-              <option value="breast_cancer">Ung thư vú</option>
-              <option value="covid_19">Covid 19</option>
-              <option value="brain_tumor">U não</option>
-            </select>
-          </div>
+            <!-- Mã bệnh nhân -->
+            <div class="mb-3" hidden>
+            {% if isDoctor %}
+              <label class="form-label fw-bold">Mã bệnh nhân:</label>
+              <select class="form-select" name="patient_id" id="idSelect">
+                <option value="0">-- Chọn bệnh nhân --</option>
+                {% for patient in patients %}
+                  <option value="{{ patient[0] }}">
+                    {{ patient[0] }} - {{ patient[1] }}
+                  </option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input type="hidden" name="patient_id" value="BN_{{ patient_id }}">
+            {% endif %}
+            </div>
 
-          <!-- Chọn model -->
-          <div class="mb-3" hidden>
-            <label class="form-label fw-bold">Chọn model:</label>
-            <select class="form-select" name="model" id="modelSelect">
-              <option value="skin_cancer_vit,pneumonia_vit,breast_cancer_vit,covid19_vit,brain_tumor_vit,brain_tumor_resnet">-- Chọn model --</option>
-            </select>
-          </div>
+            <!-- Chọn loại bệnh -->
+            <div class="mb-3 swapF" hidden>
+              <label class="form-label fw-bold">Chọn loại bệnh:</label>
+              <select class="form-select" id="diseaseSelect">
+                <option value="">-- Chọn loại bệnh --</option>
+                <option value="skin_cancer">Ung thư da</option>
+                <option value="pneumonia">Viêm phổi</option>
+                <option value="breast_cancer">Ung thư vú</option>
+                <option value="covid_19">Covid 19</option>
+                <option value="brain_tumor">U não</option>
+              </select>
+            </div>
 
-          <!-- Modal mô tả model -->
-          <div class="modal fade" id="modelInfoModal" tabindex="-1" aria-labelledby="modelInfoModalLabel">
-            <div class="modal-dialog modal-dialog-centered">
-              <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                  <h5 class="modal-title" id="modelInfoModalLabel">Thông tin model</h5>
-                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Đóng"></button>
-                </div>
-                <div class="modal-body" id="modelInfoContent">
-                  <!-- Nội dung mô tả model sẽ được chèn bằng JS -->
+            <!-- Chọn model -->
+            <div class="mb-3 swapF" hidden>
+              <label class="form-label fw-bold">Chọn model:</label>
+              <select class="form-select" name="model" id="modelSelect">
+                <option value="skin_cancer_vit,pneumonia_vit,breast_cancer_vit,covid19_vit,brain_tumor_vit,brain_tumor_resnet">-- Chọn model --</option>
+              </select>
+            </div>
+
+            <!-- Modal mô tả model -->
+            <div class="modal fade" id="modelInfoModal" tabindex="-1" aria-labelledby="modelInfoModalLabel">
+              <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                  <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="modelInfoModalLabel">Thông tin model</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                  </div>
+                  <div class="modal-body" id="modelInfoContent">
+                    <!-- Nội dung mô tả model sẽ được chèn bằng JS -->
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Chọn ảnh -->
-          <div class="mb-3">
-            <label class="form-label fw-bold">Chọn ảnh (png, jpg, jpeg, nrrd, hdr, img, nii, gz, dcm) — tối đa 10MB:</label>
-            <input type="file" class="form-control" name="file" accept="image/*" required>
-          </div>
+            <!-- Chọn ảnh -->
+            <div class="mb-3">
+              <label class="form-label fw-bold">Chọn ảnh (png, jpg, jpeg, nrrd, hdr, img, nii, gz, dcm) — tối đa 10MB:</label>
+              <input type="file" class="form-control" name="file" accept="image/*" required>
+            </div>
 
-          <button type="submit" class="btn btn-primary w-100">Chẩn đoán bệnh</button>
-        </form>
+            <button type="submit" class="btn btn-primary w-100">Chẩn đoán bệnh</button>
+          </form>
+        </div>
 
         <div class="mt-4">
           <h5>Image Preview</h5>
           <img id="imagePreview" src="" alt="Ảnh xem trước" style="display: none;">
         </div>
+
+
 
         <div class="mt-4">
           <h5>Diagnosis Results</h5>
@@ -215,26 +227,46 @@
   <script src="{{ url_for('static', path='sidebar.js') }}"></script>
 
   <script>
+    const origin = "{{ url_for('static', path='') }}" + "uploads/";
+
     document.addEventListener("DOMContentLoaded", () => {
       hljs.highlightAll();
     });
 
+    function loadForm(isAuto) {
+      const els = document.getElementsByClassName("swapF");
+      const modelSelect = document.getElementById("modelSelect");
+      if (isAuto) {
+        els[0].hidden = true;
+        els[1].hidden = true;
+        modelSelect.disabled = false;
+      } else {
+        els[0].hidden = false;
+        els[1].hidden = false;
+        modelSelect.disabled = true;
+      }
+    }
+
+    document.getElementById("autoToggle").addEventListener("change", function () {
+      loadForm(this.checked);
+    });
+
     const diseaseModels = {
       skin_cancer: [
-        { value: "skin_cancer_vit", text: "Độ chính xác cao - Vision transformer (ViT)", desc: "Model Vision Transformer (ViT) huấn luyện trên bộ dữ liệu ..., có khả năng phân loại 5 loại tổn thương da khác nhau với độ chính xác ~92%." },
+        { value: "skin_cancer_vit", text: "Độ chính xác cao - Vision transformer (ViT)", desc: "Model Vision Transformer (ViT) huấn luyện trên bộ dữ liệu ..., có khả năng phân loại ... loại tổn thương da khác nhau với độ chính xác ~...%." },
       ],
       pneumonia: [
-        { value: "pneumonia_vit", text: "Độ chính xác cao - Vision transformer (ViT)", desc: "Model Vision Transformer (ViT) huấn luyện trên bộ dữ liệu ..., có khả năng phân loại 5 loại tổn thương da khác nhau với độ chính xác ~92%." },
+        { value: "pneumonia_vit", text: "Độ chính xác cao - Vision transformer (ViT)", desc: "Model Vision Transformer (ViT) huấn luyện trên bộ dữ liệu ..., có khả năng phân loại ... loại tổn thương da khác nhau với độ chính xác ~...%." },
       ],
       breast_cancer: [
-        { value: "breast_cancer_vit", text: "Độ chính xác cao - Vision transformer (ViT)", desc: "Model Vision Transformer (ViT) huấn luyện trên bộ dữ liệu ..., có khả năng phân loại 5 loại tổn thương da khác nhau với độ chính xác ~92%." },
+        { value: "breast_cancer_vit", text: "Độ chính xác cao - Vision transformer (ViT)", desc: "Model Vision Transformer (ViT) huấn luyện trên bộ dữ liệu ..., có khả năng phân loại ... loại tổn thương da khác nhau với độ chính xác ~...%." },
       ],
       covid_19: [
-        { value: "covid19_vit", text: "Độ chính xác cao - Vision transformer (ViT)" , desc: "Model Vision Transformer (ViT) huấn luyện trên bộ dữ liệu ..., có khả năng phân loại 5 loại tổn thương da khác nhau với độ chính xác ~92%."},
+        { value: "covid19_vit", text: "Độ chính xác cao - Vision transformer (ViT)" , desc: "Model Vision Transformer (ViT) huấn luyện trên bộ dữ liệu ..., có khả năng phân loại ... loại tổn thương da khác nhau với độ chính xác ~...%."},
       ],
       brain_tumor: [
-        { value: "brain_tumor_vit", text: "Độ chính xác cao - Vision transformer (ViT)", desc: "Model Vision Transformer (ViT) huấn luyện trên bộ dữ liệu ..., có khả năng phân loại 5 loại tổn thương da khác nhau với độ chính xác ~92%." },
-        { value: "brain_tumor_resnet", text: "Độ chính xác khá cao - Resnet50", desc: "Model Vision Transformer (ViT) huấn luyện trên bộ dữ liệu ..., có khả năng phân loại 5 loại tổn thương da khác nhau với độ chính xác ~92%." },
+        { value: "brain_tumor_vit", text: "Độ chính xác cao - Vision transformer (ViT)", desc: "Model Vision Transformer (ViT) huấn luyện trên bộ dữ liệu ..., có khả năng phân loại ... loại tổn thương da khác nhau với độ chính xác ~...%." },
+        { value: "brain_tumor_resnet", text: "Độ chính xác khá cao - Resnet50", desc: "Model Resnet50 huấn luyện trên bộ dữ liệu ..., có khả năng phân loại ... loại tổn thương da khác nhau với độ chính xác ~...%." },
       ]
     };
     const idSelect = document.getElementById("idSelect");
@@ -400,76 +432,81 @@
           return;
         }
 
-        // Là ảnh y tế
-        convertedImageFile = pngFile;
-        submitBtn.disabled = false;
+        const checkbox = document.getElementById("autoToggle");
 
-        const classToModelMap = {
-          class_2: ["pneumonia_vit", "covid19_vit"],
-          class_3: "breast_cancer_vit",
-          class_4: "skin_cancer_vit",
-          class_5: ["brain_tumor_vit", "brain_tumor_resnet"]
-        };
+        if (checkbox.checked) {
+          // Là ảnh y tế
+          convertedImageFile = pngFile;
+          submitBtn.disabled = false;
 
-        const classToNameMap = {
-          class_2: "Ảnh phổi",
-          class_3: "Ảnh vếu",
-          class_4: "Ảnh da",
-          class_5: "Ảnh não"
-        };
+          const classToModelMap = {
+            class_2: ["pneumonia_vit", "covid19_vit"],
+            class_3: "breast_cancer_vit",
+            class_4: "skin_cancer_vit",
+            class_5: ["brain_tumor_vit", "brain_tumor_resnet"]
+          };
 
-        // Lấy top 1 labels (bỏ class_1)
-        const topkLabels = inferData.result
-          .filter(item => item.label !== "class_1") // bỏ Negative
-          .sort((a, b) => b.score - a.score)        // sắp xếp giảm dần
-          .slice(0, 1)                              // lấy 1 phần tử đầu
-          .map(item => item.label);                 // chỉ lấy label
+          const classToNameMap = {
+            class_2: "Ảnh phổi",
+            class_3: "Ảnh vếu",
+            class_4: "Ảnh da",
+            class_5: "Ảnh não"
+          };
 
-        // Map sang model
-        let mappedModels = [];
-        let diseaseParts = [];
+          // Lấy top 1 labels (bỏ class_1)
+          const topkLabels = inferData.result
+            .filter(item => item.label !== "class_1") // bỏ Negative
+            .sort((a, b) => b.score - a.score)        // sắp xếp giảm dần
+            .slice(0, 1)                              // lấy 1 phần tử đầu
+            .map(item => item.label);                 // chỉ lấy label
 
-        topkLabels.forEach(label => {
-          const model = classToModelMap[label];
-          const name = classToNameMap[label];
-          if (name) diseaseParts.push(name);
-          if (Array.isArray(model)) {
-            mappedModels.push(...model);
-          } else if (model) {
-            mappedModels.push(model);
-          }
-        });
+          // Map sang model
+          let mappedModels = [];
+          let diseaseParts = [];
 
-        // Loại bỏ trùng lặp
-        mappedModels = [...new Set(mappedModels)];
+          topkLabels.forEach(label => {
+            const model = classToModelMap[label];
+            const name = classToNameMap[label];
+            if (name) diseaseParts.push(name);
+            if (Array.isArray(model)) {
+              mappedModels.push(...model);
+            } else if (model) {
+              mappedModels.push(model);
+            }
+          });
 
-        const disease = diseaseParts.join(", ");
+          // Loại bỏ trùng lặp
+          mappedModels = [...new Set(mappedModels)];
 
-        document.getElementsByClassName("detectedDisease")[0].textContent = disease;
+          const disease = diseaseParts.join(", ");
 
-        document.getElementsByClassName("detectedDisease")[1].textContent = disease;
+          document.getElementsByClassName("detectedDisease")[0].textContent = disease;
 
-        continueModal.show();
+          document.getElementsByClassName("detectedDisease")[1].textContent = disease;
+
+          continueModal.show();
+      
+          document.getElementById("cancelContinueBtn").onclick = () => {
+            continueModal.hide();
+
+            const option = document.querySelector('#modelSelect option');
+            option.value = "skin_cancer_vit,pneumonia_vit,breast_cancer_vit,covid19_vit,brain_tumor_vit,brain_tumor_resnet";
+
+            document.getElementById("diagnosisForm").requestSubmit();
+          };
     
-        document.getElementById("cancelContinueBtn").onclick = () => {
-          continueModal.hide();
+          document.getElementById("confirmContinueBtn").onclick = () => {
+            continueModal.hide();
+            // Cập nhật value của option #modelSelect
+            const option = document.querySelector('#modelSelect option');
+            option.value = mappedModels.join(",");
 
-          const option = document.querySelector('#modelSelect option');
-          option.value = "skin_cancer_vit,pneumonia_vit,breast_cancer_vit,covid19_vit,brain_tumor_vit,brain_tumor_resnet";
-
+            document.getElementById("diagnosisForm").requestSubmit();
+          };
+        } else {
           document.getElementById("diagnosisForm").requestSubmit();
-        };
-  
-        document.getElementById("confirmContinueBtn").onclick = () => {
-          continueModal.hide();
-          // Cập nhật value của option #modelSelect
-          const option = document.querySelector('#modelSelect option');
-          option.value = mappedModels.join(",");
+        }
 
-          document.getElementById("diagnosisForm").requestSubmit();
-        };
-
-    
       } catch (err) {
         uploadLoadingModal.hide();
         alert("Lỗi xử lý ảnh: " + err.message);
@@ -564,6 +601,8 @@
         loadingModal.hide();
         submitBtn.disabled = false;
 
+        const explain_image_filenames = result.explain_image_filenames.split(',');
+
         const finalResults = result.results; // Array các model
 
         // Hiển thị modal top prediction
@@ -613,6 +652,15 @@
           content.innerHTML = `
             <h5>Mô hình: <b>${modelResult.model}</b></h5>
             <p>Dự đoán: <b>${modelResult.top_label}</b> (${(modelResult.top_score*100).toFixed(2)}%)</p>
+            
+            <div class="mt-3">
+              <h6>Heatmap</h6>
+              <img src="${origin + explain_image_filenames[idx]}" 
+                  alt="Heatmap image" 
+                  class="img-fluid rounded shadow" 
+                  style="width: 224px; margin-bottom: 20px;">
+            </div>
+            
             <canvas id="${modelId}-chart" height="100px"></canvas>
           `;
           tabContent.appendChild(content);

@@ -123,12 +123,24 @@
       </div>
 
       <!-- Image Preview -->
-      <div class="col-md-5">
+      <div class="col-md-5 col-12 mb-3">
         <div class="card p-3">
           <h5 class="card-title">📍 Scanned Image</h5>
           <img width="224px" height="224px" src="{{ url_for('static', path='uploads/' ~ diagnosis.image_filename) }}" 
-               alt="Diagnosis Image" class="img-fluid rounded shadow">
+              alt="Diagnosis Image" class="img-fluid rounded shadow">
         </div>
+        {% set heatmaps = diagnosis.explain_image_filenames.split(',') %}
+        {% for heatmap in heatmaps %}
+          {% if heatmap %}
+          <div class="card p-3 mt-3">
+            <h5 class="card-title">🔥 Heatmap cho mô hình {{ loop.index }}</h5>
+            <img width="224px" height="224px"
+                src="{{ url_for('static', path='uploads/' ~ heatmap) }}" 
+                alt="Heatmap of Diagnosis Image {{ loop.index }}" 
+                class="img-fluid rounded shadow">
+          </div>
+          {% endif %}
+        {% endfor %}
       </div>
     </div>
 

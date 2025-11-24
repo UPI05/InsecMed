@@ -41,6 +41,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'nrrd', 'hdr', 'img', 'nii', 'gz', '
 WEB_SERVER_HOST = 'http://10.102.196.113'
 AI_SERVER_HOST = 'http://10.102.196.113:8080'
 IMG_SERVER_HOST = 'http://10.102.196.113:8000'
+EXPLAIN_SERVER_HOST = "http://10.102.196.101:8000/explain"
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["100 per hour"])
@@ -83,6 +84,7 @@ def init_db():
                   patient_id INTEGER,
                   model TEXT,
                   image_filename TEXT,
+                  explain_image_filename TEXT,
                   prediction TEXT,
                   probability REAL,
                   share_to TEXT,
@@ -118,7 +120,8 @@ def init_db():
     conn.commit()
     conn.close()
 
-init_db()
+if not os.path.exists(DB_FILE):
+    init_db()
 
 def get_db_conn():
     conn = sqlite3.connect(DB_FILE)
@@ -171,8 +174,9 @@ def load_notifications():
 # -----------------Celery ----------------
 @celery.task(bind=True, queue='pipeline_a')
 def call_diagnosis_from_ai_server(self, filename, patient_id, model_name, user_id):
+    input_file = open(os.path.join(UPLOAD_FOLDER, filename), 'rb')
     # Gọi API server để inference
-    files = {'file': open(os.path.join(UPLOAD_FOLDER, filename), 'rb')}
+    files = {'file': input_file}
     data = {'model': model_name}
     resp = requests.post(f"{AI_SERVER_HOST}/diagnose", data=data, files=files)
     results = resp.json()
@@ -181,14 +185,49 @@ def call_diagnosis_from_ai_server(self, filename, patient_id, model_name, user_i
     for i in range(len(model_name.split(','))):
         labels += results['results'][i]['top_label'] + "/"
 
+    explain_filenames = ""
+
+    for idx, m in enumerate(model_name.split(',')):
+        # Explain Multipart form-data
+        explain_model_name = ""
+
+        if 'skin' in m:
+            explain_model_name = "Anwarkh1/Skin_Cancer-Image_Classification"
+
+        elif 'breast' in m:
+            explain_model_name = "Falah/vit-base-breast-cancer"
+
+        elif 'brain' in m:
+            explain_model_name = "DunnBC22/vit-base-patch16-224-in21k_brain_tumor_diagnosis"
+
+        elif 'pneu' in m:
+            explain_model_name = "xyuan/vit-xray-pneumonia-classification"
+
+        else:
+            explain_model_name = "DunnBC22/vit-base-patch16-224-in21k_covid_19_ct_scans"
+
+        files = {
+            "model_kind": (None, explain_model_name),
+            "prediction": (None, "Value"),
+            "image": (filename, input_file, "image/png")
+        }
+
+        explain_filenames += "explain_"+str(idx)+"_"+filename + ","
+
+        response = requests.post(EXPLAIN_SERVER_HOST, files=files)
+        if response.content:
+            with open(os.path.join(UPLOAD_FOLDER, "explain_"+str(idx)+"_"+filename), "wb") as f:
+                f.write(response.content)
+
     # Lưu vào database
     conn = get_db_conn()
     cur = conn.execute(
-        "INSERT INTO diagnoses (user_id, patient_id, model, image_filename, prediction, probability, timestamp) VALUES (?,?,?,?,?,?,?)",
-        (user_id, patient_id, model_name, filename, labels, results['results'][0]['top_score'], datetime.now())
+        "INSERT INTO diagnoses (user_id, patient_id, model, image_filename, explain_image_filename, prediction, probability, timestamp) VALUES (?,?,?,?,?,?,?,?)",
+        (user_id, patient_id, model_name, filename, explain_filenames, labels, results['results'][0]['top_score'], datetime.now())
     )
     diag_id = cur.lastrowid
     results["diagnosis_id"] = diag_id
+    results["explain_image_filenames"] = explain_filenames
     conn.commit()
     conn.close()
 
@@ -683,7 +722,7 @@ def diagnosis_detail():
     if tag == 'diag':
 
         conn = get_db_conn()
-        row = conn.execute("SELECT id, user_id, patient_id, model, image_filename, prediction, probability, timestamp, share_to, sharer FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
+        row = conn.execute("SELECT id, user_id, patient_id, model, image_filename, prediction, probability, timestamp, share_to, sharer, explain_image_filename FROM diagnoses WHERE id = ?", (diag_id,)).fetchone()
         user_row = conn.execute("SELECT email FROM users WHERE id = ?", (session['user_id'],)).fetchone()
         conn.close()
 
@@ -740,7 +779,8 @@ def diagnosis_detail():
             "timestamp": row[7],
             "share_to": row[8],
             "sharer": sharer[0],
-            "patient": patient[0]
+            "patient": patient[0],
+            "explain_image_filename": row[10]
         }
 
     else:
