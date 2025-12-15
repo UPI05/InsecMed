@@ -239,6 +239,7 @@
   
           const inferData = await inferResp.json();
           if (inferData.prediction === "Positive") {
+            convertedImageFile = processedFile;
             submitBtn.disabled = false; // Ảnh y tế → cho phép gửi
           } else {
             // Không phải ảnh y tế → hỏi người dùng
@@ -343,9 +344,7 @@
           }
     
           loadingModal.hide();
-          resultBox.style.color = 'green';
-          resultBox.textContent = result.answer;
-          hljs.highlightElement(resultBox);
+          resultBox.innerHTML = result.answer;
         } catch (err) {
           resultBox.textContent = "Lỗi: " + err.message;
           alert("Fetch error: " + err.message);

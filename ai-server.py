@@ -6,6 +6,19 @@ from flask_cors import CORS
 import time
 import torch
 from werkzeug.utils import secure_filename
+import paramiko
+import json
+import getpass
+import markdown
+
+# ===== CONFIG =====
+KEY_PATH = "/home/d1l1th1um/Desktop/id_rsa"
+CMS_HOST = "cms-ssh.sc.imr.tohoku.ac.jp"
+GPU_HOST = "gpu.sc.imr.tohoku.ac.jp"
+USER = "inomar01"
+REMOTE_DIR = "/home/inomar01/Hieu"
+REMOTE_IMAGE = f"{REMOTE_DIR}/upload"
+LOCAL_IMAGE = "/home/d1l1th1um/Desktop/demo/vqa-image"
 
 app = Flask(__name__)
 CORS(app, origins=["http://10.102.196.113"], supports_credentials=True) # Allow all origins for API server
@@ -23,14 +36,14 @@ brain_tumor_model_resnet50 = pipeline("image-classification", model="Alia-Mohamm
 # Vision qa models
 
 #terminal auth: hf-auth-login
-model_id = "google/medgemma-4b-it"
-
-model = AutoModelForImageTextToText.from_pretrained(
-    model_id,
-    torch_dtype=torch.bfloat16,
-    device_map="auto",
-)
-processor = AutoProcessor.from_pretrained(model_id)
+#model_id = "google/medgemma-4b-it"
+#
+#model = AutoModelForImageTextToText.from_pretrained(
+#    model_id,
+#    torch_dtype=torch.bfloat16,
+#    device_map="auto",
+#)
+#processor = AutoProcessor.from_pretrained(model_id)
 
 def normalize_results(results):
     # Nếu là dict duy nhất → bọc vào list
@@ -63,6 +76,8 @@ def parse_model_names(model_name_str):
 def diagnose():
     model_names = request.form.get("model")
     file = request.files.get("file")
+
+    print(file.filename)
 
     if not model_names or not file:
         return jsonify({"error":"Thiếu model hoặc file ảnh"}),400
@@ -166,38 +181,100 @@ def vqa_diagnose():
     question = request.form.get("question")
     file = request.files.get("file")
 
+    print(file.filename)
+
     if not file or not model_name or not question:
         return "Invalid", 400
+    
+    ext = os.path.splitext(file.filename)[1].lower()
+    
+    file.save(LOCAL_IMAGE + ext)
 
-    # Đọc file bằng PIL.Image
-    image = Image.open(file.stream)
-    messages = [
-        {
-            "role": "system",
-            "content": [{"type": "text", "text": "You are an expert radiologist."}]
-        },
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": question},
-                {"type": "image", "image": image}
-            ]
-        }
-    ]
+    # ===== COMMAND =====
+    curl_cmd = f"""
+    cd {REMOTE_DIR} && curl -X POST http://10.200.1.4:5000/medgemma -F "image=@upload{ext}" -F "question={question}"
+    """
 
-    inputs = processor.apply_chat_template(
-        messages, add_generation_prompt=True, tokenize=True,
-        return_dict=True, return_tensors="pt"
-    ).to(model.device, dtype=torch.bfloat16)
+    # ===== INPUT SECRETS =====
+    key_passphrase = getpass.getpass("🔑 Enter SSH key passphrase: ")
+    gpu_password = getpass.getpass("🔐 Enter GPU password: ")
 
-    input_len = inputs["input_ids"].shape[-1]
+    # ===== SSH TO CMS =====
+    print("[*] Connecting to CMS...")
+    pkey = paramiko.RSAKey.from_private_key_file(
+        KEY_PATH, password=key_passphrase
+    )
 
-    with torch.inference_mode():
-        generation = model.generate(**inputs, max_new_tokens=500, do_sample=False)
-        generation = generation[0][input_len:]
+    cms = paramiko.SSHClient()
+    cms.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    cms.connect(CMS_HOST, username=USER, pkey=pkey)
 
-    decoded = processor.decode(generation, skip_special_tokens=True)
-    return jsonify({"answer": decoded}),200
+    # ===== TUNNEL TO GPU =====
+    transport = cms.get_transport()
+    dest_addr = (GPU_HOST, 22)
+    local_addr = ("127.0.0.1", 0)
+
+    channel = transport.open_channel(
+        "direct-tcpip", dest_addr, local_addr
+    )
+
+    gpu = paramiko.SSHClient()
+    gpu.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    gpu.connect(
+        GPU_HOST,
+        username=USER,
+        password=gpu_password,
+        sock=channel
+    )
+
+    # ===== UPLOAD IMAGE =====
+    print("[*] Uploading image to GPU node...")
+    sftp = gpu.open_sftp()
+
+    try:
+        sftp.chdir(REMOTE_DIR)
+    except IOError:
+        sftp.mkdir(REMOTE_DIR)
+        sftp.chdir(REMOTE_DIR)
+
+    sftp.put(LOCAL_IMAGE + ext, REMOTE_IMAGE + ext)
+    sftp.close()
+
+    # ===== EXEC CURL =====
+    print("[*] Running MedGemma request...")
+    stdin, stdout, stderr = gpu.exec_command(curl_cmd)
+
+    #gpu.close()
+    #cms.close()
+    return jsonify({"answer": markdown.markdown(json.loads(stdout.read().decode())['result'])}),200
+
+    # messages = [
+    #     {
+    #         "role": "system",
+    #         "content": [{"type": "text", "text": "You are an expert radiologist."}]
+    #     },
+    #     {
+    #         "role": "user",
+    #         "content": [
+    #             {"type": "text", "text": question},
+    #             {"type": "image", "image": image}
+    #         ]
+    #     }
+    # ]
+
+    # inputs = processor.apply_chat_template(
+    #     messages, add_generation_prompt=True, tokenize=True,
+    #     return_dict=True, return_tensors="pt"
+    # ).to(model.device, dtype=torch.bfloat16)
+
+    # input_len = inputs["input_ids"].shape[-1]
+
+    # with torch.inference_mode():
+    #     generation = model.generate(**inputs, max_new_tokens=500, do_sample=False)
+    #     generation = generation[0][input_len:]
+
+    # decoded = processor.decode(generation, skip_special_tokens=True)
+    # return jsonify({"answer": decoded}),200
 
     return jsonify({"answer":"Tính năng này tạm thời bị đóng do chưa có GPU =))"}),200
 
