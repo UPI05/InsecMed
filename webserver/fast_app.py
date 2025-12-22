@@ -220,10 +220,10 @@ def call_diagnosis_from_ai_server(self, filename, patient_id, model_name, user_i
         }
         explain_filenames += "explain_"+str(idx)+"_"+filename + ","
 
-        response = requests.post(EXPLAIN_SERVER_HOST, files=files)
-        if response.content:
-            with open(os.path.join(UPLOAD_FOLDER, "explain_"+str(idx)+"_"+filename), "wb") as f:
-                f.write(response.content)
+        # response = requests.post(EXPLAIN_SERVER_HOST, files=files)
+        # if response.content:
+        #     with open(os.path.join(UPLOAD_FOLDER, "explain_"+str(idx)+"_"+filename), "wb") as f:
+        #         f.write(response.content)
 
     conn = get_db_conn()
     cur = conn.execute(

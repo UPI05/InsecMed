@@ -10,6 +10,9 @@ import paramiko
 import json
 import getpass
 import markdown
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ===== CONFIG =====
 KEY_PATH = "/home/d1l1th1um/Desktop/id_rsa"
@@ -19,6 +22,9 @@ USER = "inomar01"
 REMOTE_DIR = "/home/inomar01/Hieu"
 REMOTE_IMAGE = f"{REMOTE_DIR}/upload"
 LOCAL_IMAGE = "/home/d1l1th1um/Desktop/demo/vqa-image"
+
+PASS_PHRASE = os.getenv("PASS_PHRASE")
+GPU_PASSWD = os.getenv("GPU_PASSWD")
 
 app = Flask(__name__)
 CORS(app, origins=["http://10.102.196.113"], supports_credentials=True) # Allow all origins for API server
@@ -181,7 +187,7 @@ def vqa_diagnose():
     question = request.form.get("question")
     file = request.files.get("file")
 
-    print(file.filename)
+    print("model: ", model_name)
 
     if not file or not model_name or not question:
         return "Invalid", 400
@@ -192,12 +198,12 @@ def vqa_diagnose():
 
     # ===== COMMAND =====
     curl_cmd = f"""
-    cd {REMOTE_DIR} && curl -X POST http://10.200.1.4:5000/medgemma -F "image=@upload{ext}" -F "question={question}"
+    cd {REMOTE_DIR} && curl -X POST http://10.200.1.3:5000/{model_name} -F "image=@upload{ext}" -F "question={question}"
     """
 
     # ===== INPUT SECRETS =====
-    key_passphrase = getpass.getpass("🔑 Enter SSH key passphrase: ")
-    gpu_password = getpass.getpass("🔐 Enter GPU password: ")
+    key_passphrase = PASS_PHRASE
+    gpu_password = GPU_PASSWD
 
     # ===== SSH TO CMS =====
     print("[*] Connecting to CMS...")
