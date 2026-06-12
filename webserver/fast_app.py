@@ -334,7 +334,7 @@ async def register_post(
 
     filename = None
     if profile_pic and profile_pic.filename:
-        filename = f"{uuid.uuid4()}_{profile_pic.filename}"
+        filename = f"{uuid.uuid4()}_{os.path.basename(profile_pic.filename)}"
         if not allowed_ext(filename):
             conn.close()
             return JSONResponse({"error": "Invalid format"})
